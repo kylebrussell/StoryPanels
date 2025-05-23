@@ -117,18 +117,7 @@ AI Comic Maker is an iOS application that democratizes comic creation by combini
 3. Options: "Save to Photos" and "Share"
 4. Confirmation: "Comic saved to your Photos!"
 
-### 3.5 User Account & Authentication
 
-#### Requirements:
-- **P0**: Sign in with Apple implementation
-- **P0**: Account creation on first sign-in
-- **P1**: Guest mode with limited features
-- **P1**: Account deletion option (App Store requirement)
-
-#### Benefits of Account:
-- Save work in progress
-- Access comics across devices (future)
-- Unlock premium features (future)
 
 ## 4. User Interface Requirements
 

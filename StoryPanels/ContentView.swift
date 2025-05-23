@@ -230,6 +230,40 @@ class OpenAIImageService {
     }
 }
 
+// MARK: - Comic Theme & Styles
+
+/// Centralised colours & modifiers to give the app a fun comic-book vibe.
+struct ComicTheme {
+    /// A light off-white, reminiscent of comic book paper.
+    static let background = Color(red: 0.98, green: 0.95, blue: 0.85)
+    /// A bright red that will be used for primary actions and accents.
+    static let primary = Color.red
+    /// A punchy yellow for secondary accents.
+    static let secondary = Color.yellow
+}
+
+/// Reusable button style that mimics thick inked outlines often seen in comics.
+struct ComicButtonStyle: ButtonStyle {
+    var backgroundColor: Color = ComicTheme.secondary
+    var foregroundColor: Color = .black
+    var strokeColor: Color = .black
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline)
+            .foregroundColor(foregroundColor)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(backgroundColor)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(strokeColor, lineWidth: 3)
+            )
+            .cornerRadius(8)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+    }
+}
+
 // MARK: - Content View
 struct ContentView: View {
     @State private var showingEditor = false
@@ -240,7 +274,7 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 30) {
-                Text("AI Comic Maker")
+                Text("StoryPanels")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                 
@@ -267,35 +301,34 @@ struct ContentView: View {
                         showingEditor = true
                     }) {
                         Label("Create Comic", systemImage: "plus.circle.fill")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .cornerRadius(12)
                     }
+                    .buttonStyle(ComicButtonStyle(backgroundColor: ComicTheme.primary, foregroundColor: .white))
                 }
                 .padding(.horizontal)
                 
 
             }
             .padding()
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        showingSettings = true
-                    }) {
-                        Image(systemName: "gear")
-                    }
+        }
+        .background(ComicTheme.background)
+        .ignoresSafeArea()
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showingSettings = true
+                }) {
+                    Image(systemName: "gear")
                 }
             }
-            .sheet(isPresented: $showingEditor) {
-                ComicEditorView(layout: selectedLayout)
-            }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView()
-            }
         }
+        .sheet(isPresented: $showingEditor) {
+            ComicEditorView(layout: selectedLayout)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
+        }
+        .toolbarBackground(ComicTheme.background, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
     }
 }
 
@@ -311,19 +344,23 @@ struct LayoutButton: View {
                 HStack(spacing: 4) {
                     ForEach(0..<layout.panelCount, id: \.self) { _ in
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(isSelected ? Color.blue : Color.gray.opacity(0.3))
+                            .fill(isSelected ? ComicTheme.primary : ComicTheme.secondary.opacity(0.4))
                             .frame(width: layout == .single ? 60 : 30, height: 40)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(Color.black, lineWidth: 2)
+                            )
                     }
                 }
                 
                 Text(layout.displayName)
                     .font(.caption)
-                    .foregroundColor(isSelected ? .blue : .gray)
+                    .foregroundColor(isSelected ? ComicTheme.primary : .gray)
             }
             .padding()
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+                    .stroke(Color.black, lineWidth: 2)
             )
         }
     }
@@ -373,7 +410,7 @@ struct ComicEditorView: View {
                             }
                             .padding()
                         }
-                        .background(Color.gray.opacity(0.1))
+                        .background(ComicTheme.background)
                         
                         // Tools
                         VStack(spacing: 16) {
@@ -390,17 +427,14 @@ struct ComicEditorView: View {
                                         }) {
                                             Text("Panel \(index + 1)")
                                                 .font(.caption)
-                                                .foregroundColor(selectedPanel == index ? .white : .blue)
-                                                .padding(.horizontal, 12)
-                                                .padding(.vertical, 6)
-                                                .background(
-                                                    selectedPanel == index ? Color.blue : Color.clear
-                                                )
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 6)
-                                                        .stroke(Color.blue, lineWidth: 1)
-                                                )
                                         }
+                                        .buttonStyle(
+                                            ComicButtonStyle(
+                                                backgroundColor: selectedPanel == index ? ComicTheme.primary : ComicTheme.secondary.opacity(0.5),
+                                                foregroundColor: .black,
+                                                strokeColor: .black
+                                            )
+                                        )
                                     }
                                 }
                             }
@@ -425,13 +459,10 @@ struct ComicEditorView: View {
                                         } else {
                                             Text("Generate")
                                                 .font(.caption)
+                                                .frame(maxWidth: .infinity)
                                         }
                                     }
-                                    .frame(width: 80)
-                                    .padding(.vertical, 6)
-                                    .background(Color.blue)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(6)
+                                    .buttonStyle(ComicButtonStyle(backgroundColor: ComicTheme.primary, foregroundColor: .white))
                                     .disabled(comic.panels[selectedPanel].isGenerating || comic.panels[selectedPanel].imagePrompt.isEmpty)
                                 }
                             }
@@ -450,9 +481,8 @@ struct ComicEditorView: View {
                                         }
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 8)
-                                        .background(Color.gray.opacity(0.1))
-                                        .cornerRadius(8)
                                     }
+                                    .buttonStyle(ComicButtonStyle(backgroundColor: ComicTheme.secondary, foregroundColor: .black))
                                 }
                             }
                             
@@ -467,20 +497,17 @@ struct ComicEditorView: View {
                                         Image(systemName: "trash.fill")
                                         Text("Remove Recent")
                                     }
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.red)
-                                    .cornerRadius(8)
                                 }
+                                .buttonStyle(ComicButtonStyle(backgroundColor: .red, foregroundColor: .white))
                             }
                         }
                         .padding()
-                        .background(Color.white)
+                        .background(ComicTheme.background)
                     }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(ComicTheme.background)
             .navigationTitle("Comic Editor")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -513,6 +540,10 @@ struct ComicEditorView: View {
                     Text("Comic saved to your Photos!")
                 }
             }
+            .background(ComicTheme.background)
+            .ignoresSafeArea()
+            .toolbarBackground(ComicTheme.background, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
         }
     }
     
@@ -639,8 +670,9 @@ struct PanelView: View {
                 .frame(width: 300, height: 300)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(isSelected ? Color.blue : Color.gray.opacity(0.3), lineWidth: isSelected ? 3 : 1)
+                        .stroke(Color.black, lineWidth: isSelected ? 5 : 3)
                 )
+                .shadow(color: Color.black.opacity(0.25), radius: 4, x: 2, y: 2)
             
             // Generated Image
             if let image = panel.generatedImage {
@@ -1135,13 +1167,10 @@ struct ExportView: View {
                         onSave()
                     }) {
                         Label("Save to Photos", systemImage: "square.and.arrow.down")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .cornerRadius(12)
                     }
+                    .buttonStyle(ComicButtonStyle(backgroundColor: ComicTheme.primary, foregroundColor: .white))
+                    .frame(maxWidth: .infinity)
+                    .padding()
                     
                     ShareLink(item: Image(uiImage: image), preview: SharePreview("My Comic", image: Image(uiImage: image))) {
                         Label("Share", systemImage: "square.and.arrow.up")
@@ -1165,6 +1194,10 @@ struct ExportView: View {
                 }
             }
         }
+        .background(ComicTheme.background)
+        .ignoresSafeArea()
+        .toolbarBackground(ComicTheme.background, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
     }
 }
 
@@ -1238,5 +1271,9 @@ struct SettingsView: View {
                 tempApiKey = apiKey
             }
         }
+        .background(ComicTheme.background)
+        .ignoresSafeArea()
+        .toolbarBackground(ComicTheme.background, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
     }
 }
