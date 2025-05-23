@@ -62,7 +62,7 @@ struct Comic {
     
     init(layout: PanelLayout) {
         self.layout = layout
-        self.panels = Array(repeating: ComicPanel(), count: layout.panelCount)
+        self.panels = (0..<layout.panelCount).map { _ in ComicPanel() }
     }
 }
 
