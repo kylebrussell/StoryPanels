@@ -590,6 +590,19 @@ struct ComicEditorView: View {
     
     private func addTextElement(type: TextElementType) {
         var element = TextElement(type: type)
+        
+        // Set appropriate default sizes for different element types
+        switch type {
+        case .speechBubble:
+            element.size = CGSize(width: 120, height: 60)
+        case .thoughtBubble:
+            element.size = CGSize(width: 100, height: 80)
+        case .caption:
+            element.size = CGSize(width: 140, height: 40)
+        case .soundEffect:
+            element.size = CGSize(width: 100, height: 100)
+        }
+        
         element.position = CGPoint(x: 150, y: 100 + CGFloat(comic.panels[selectedPanel].textElements.count * 80))
         comic.panels[selectedPanel].textElements.append(element)
         mostRecentTextElementIndex = comic.panels[selectedPanel].textElements.count - 1
@@ -675,38 +688,52 @@ struct TextElementView: View {
     let onTextElementInteraction: () -> Void
     @State private var dragOffset = CGSize.zero
     @GestureState private var isDragging = false
+    @GestureState private var magnification: CGFloat = 1.0
     
     var body: some View {
         Group {
             switch element.type {
             case .speechBubble:
-                SpeechBubbleView(text: $element.text, isEditing: $element.isEditing, onTextElementInteraction: onTextElementInteraction)
+                SpeechBubbleView(text: $element.text, isEditing: $element.isEditing, size: element.size, onTextElementInteraction: onTextElementInteraction)
             case .thoughtBubble:
-                ThoughtBubbleView(text: $element.text, isEditing: $element.isEditing, onTextElementInteraction: onTextElementInteraction)
+                ThoughtBubbleView(text: $element.text, isEditing: $element.isEditing, size: element.size, onTextElementInteraction: onTextElementInteraction)
             case .caption:
-                CaptionView(text: $element.text, isEditing: $element.isEditing, onTextElementInteraction: onTextElementInteraction)
+                CaptionView(text: $element.text, isEditing: $element.isEditing, size: element.size, onTextElementInteraction: onTextElementInteraction)
             case .soundEffect:
-                SoundEffectView(text: $element.text, isEditing: $element.isEditing, onTextElementInteraction: onTextElementInteraction)
+                SoundEffectView(text: $element.text, isEditing: $element.isEditing, size: element.size, onTextElementInteraction: onTextElementInteraction)
             }
         }
+        .scaleEffect(magnification)
         .position(
             x: element.position.x + dragOffset.width,
             y: element.position.y + dragOffset.height
         )
         .gesture(
-            DragGesture()
-                .updating($isDragging) { _, state, _ in
-                    state = true
-                }
-                .onChanged { value in
-                    dragOffset = value.translation
-                    onTextElementInteraction()
-                }
-                .onEnded { value in
-                    element.position.x += value.translation.width
-                    element.position.y += value.translation.height
-                    dragOffset = .zero
-                }
+            SimultaneousGesture(
+                DragGesture()
+                    .updating($isDragging) { _, state, _ in
+                        state = true
+                    }
+                    .onChanged { value in
+                        dragOffset = value.translation
+                        onTextElementInteraction()
+                    }
+                    .onEnded { value in
+                        element.position.x += value.translation.width
+                        element.position.y += value.translation.height
+                        dragOffset = .zero
+                    },
+                MagnificationGesture()
+                    .updating($magnification) { value, state, _ in
+                        state = value
+                        onTextElementInteraction()
+                    }
+                    .onEnded { value in
+                        let newWidth = max(60, min(300, element.size.width * value))
+                        let newHeight = max(30, min(200, element.size.height * value))
+                        element.size = CGSize(width: newWidth, height: newHeight)
+                    }
+            )
         )
         .contextMenu {
             Button(action: onDelete) {
@@ -715,6 +742,7 @@ struct TextElementView: View {
         }
         .scaleEffect(isDragging ? 1.1 : 1.0)
         .animation(.spring(response: 0.3), value: isDragging)
+        .animation(.spring(response: 0.3), value: magnification)
     }
 }
 
@@ -722,6 +750,7 @@ struct TextElementView: View {
 struct SpeechBubbleView: View {
     @Binding var text: String
     @Binding var isEditing: Bool
+    let size: CGSize
     let onTextElementInteraction: () -> Void
     
     var body: some View {
@@ -731,7 +760,7 @@ struct SpeechBubbleView: View {
             // Bubble shape
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color.white)
-                .frame(width: 120, height: 60)
+                .frame(width: size.width, height: size.height)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
                         .stroke(Color.black, lineWidth: 2)
@@ -739,16 +768,16 @@ struct SpeechBubbleView: View {
             
             // Tail (extends 20 pts below the bubble)
             Path { path in
-                path.move(to: CGPoint(x: 40, y: 60))        // bottom-centre of bubble
-                path.addLine(to: CGPoint(x: 30, y: 80))     // tip of tail
-                path.addLine(to: CGPoint(x: 60, y: 60))
+                path.move(to: CGPoint(x: size.width * 0.33, y: size.height))        
+                path.addLine(to: CGPoint(x: size.width * 0.25, y: size.height + 20))     
+                path.addLine(to: CGPoint(x: size.width * 0.5, y: size.height))
             }
             .fill(Color.white)
             .overlay(
                 Path { path in
-                    path.move(to: CGPoint(x: 40, y: 60))
-                    path.addLine(to: CGPoint(x: 30, y: 80))
-                    path.addLine(to: CGPoint(x: 60, y: 60))
+                    path.move(to: CGPoint(x: size.width * 0.33, y: size.height))
+                    path.addLine(to: CGPoint(x: size.width * 0.25, y: size.height + 20))
+                    path.addLine(to: CGPoint(x: size.width * 0.5, y: size.height))
                 }
                 .stroke(Color.black, lineWidth: 2)
             )
@@ -761,7 +790,7 @@ struct SpeechBubbleView: View {
                     })
                 } else {
                     Text(text.isEmpty ? "Tap to edit" : text)
-                        .font(.system(size: 14))
+                        .font(.system(size: min(14, size.width / 8)))
                         .onTapGesture {
                             isEditing = true
                             onTextElementInteraction()
@@ -769,8 +798,8 @@ struct SpeechBubbleView: View {
                 }
             }
             .multilineTextAlignment(.center)
-            .frame(width: 100, height: 40)
-            .position(x: 60, y: 30) // centre of the rectangle (120 × 60)
+            .frame(width: size.width * 0.85, height: size.height * 0.7)
+            .position(x: size.width / 2, y: size.height / 2)
         }
     }
 }
@@ -778,6 +807,7 @@ struct SpeechBubbleView: View {
 struct ThoughtBubbleView: View {
     @Binding var text: String
     @Binding var isEditing: Bool
+    let size: CGSize
     let onTextElementInteraction: () -> Void
     
     var body: some View {
@@ -786,20 +816,20 @@ struct ThoughtBubbleView: View {
             ZStack {
                 Circle()
                     .fill(Color.white)
-                    .frame(width: 100, height: 60)
+                    .frame(width: size.width, height: size.height * 0.8)
                     .overlay(Circle().stroke(Color.black, lineWidth: 2))
                 
                 Circle()
                     .fill(Color.white)
-                    .frame(width: 30, height: 30)
+                    .frame(width: size.width * 0.3, height: size.height * 0.3)
                     .overlay(Circle().stroke(Color.black, lineWidth: 2))
-                    .offset(x: -40, y: 20)
+                    .offset(x: -size.width * 0.35, y: size.height * 0.25)
                 
                 Circle()
                     .fill(Color.white)
-                    .frame(width: 20, height: 20)
+                    .frame(width: size.width * 0.2, height: size.height * 0.2)
                     .overlay(Circle().stroke(Color.black, lineWidth: 2))
-                    .offset(x: -50, y: 40)
+                    .offset(x: -size.width * 0.45, y: size.height * 0.45)
             }
             
             // Text
@@ -808,12 +838,13 @@ struct ThoughtBubbleView: View {
                     isEditing = false
                 })
                 .multilineTextAlignment(.center)
-                .frame(width: 80, height: 40)
+                .frame(width: size.width * 0.7, height: size.height * 0.5)
+                .font(.system(size: min(14, size.width / 8)))
             } else {
                 Text(text.isEmpty ? "Tap to edit" : text)
-                    .font(.system(size: 14))
+                    .font(.system(size: min(14, size.width / 8)))
                     .multilineTextAlignment(.center)
-                    .frame(width: 80, height: 40)
+                    .frame(width: size.width * 0.7, height: size.height * 0.5)
                     .onTapGesture {
                         isEditing = true
                         onTextElementInteraction()
@@ -826,13 +857,14 @@ struct ThoughtBubbleView: View {
 struct CaptionView: View {
     @Binding var text: String
     @Binding var isEditing: Bool
+    let size: CGSize
     let onTextElementInteraction: () -> Void
     
     var body: some View {
         ZStack {
             Rectangle()
                 .fill(Color.yellow.opacity(0.9))
-                .frame(width: 140, height: 40)
+                .frame(width: size.width, height: size.height)
                 .overlay(
                     Rectangle()
                         .stroke(Color.black, lineWidth: 2)
@@ -843,12 +875,13 @@ struct CaptionView: View {
                     isEditing = false
                 })
                 .multilineTextAlignment(.center)
-                .frame(width: 120, height: 30)
+                .frame(width: size.width * 0.9, height: size.height * 0.8)
+                .font(.system(size: min(12, size.width / 10)))
             } else {
                 Text(text.isEmpty ? "Tap to edit" : text)
-                    .font(.system(size: 12))
+                    .font(.system(size: min(12, size.width / 10)))
                     .multilineTextAlignment(.center)
-                    .frame(width: 120, height: 30)
+                    .frame(width: size.width * 0.9, height: size.height * 0.8)
                     .onTapGesture {
                         isEditing = true
                         onTextElementInteraction()
@@ -861,6 +894,7 @@ struct CaptionView: View {
 struct SoundEffectView: View {
     @Binding var text: String
     @Binding var isEditing: Bool
+    let size: CGSize
     let onTextElementInteraction: () -> Void
     
     var body: some View {
@@ -869,13 +903,13 @@ struct SoundEffectView: View {
             ForEach(0..<8) { i in
                 Rectangle()
                     .fill(Color.orange)
-                    .frame(width: 100, height: 20)
+                    .frame(width: size.width * 1.2, height: size.height * 0.2)
                     .rotationEffect(.degrees(Double(i) * 45))
             }
             
             Circle()
                 .fill(Color.yellow)
-                .frame(width: 80, height: 80)
+                .frame(width: size.width * 0.8, height: size.height * 0.8)
                 .overlay(
                     Circle()
                         .stroke(Color.black, lineWidth: 3)
@@ -886,20 +920,20 @@ struct SoundEffectView: View {
                     isEditing = false
                 })
                 .multilineTextAlignment(.center)
-                .font(.system(size: 16, weight: .bold))
-                .frame(width: 60, height: 30)
+                .font(.system(size: min(16, size.width / 6), weight: .bold))
+                .frame(width: size.width * 0.6, height: size.height * 0.4)
             } else {
                 Text(text.isEmpty ? "TAP!" : text.uppercased())
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: min(16, size.width / 6), weight: .bold))
                     .multilineTextAlignment(.center)
-                    .frame(width: 60, height: 30)
+                    .frame(width: size.width * 0.6, height: size.height * 0.4)
                     .onTapGesture {
                         isEditing = true
                         onTextElementInteraction()
                     }
             }
         }
-        .frame(width: 100, height: 100)
+        .frame(width: size.width, height: size.height)
     }
 }
 
@@ -945,13 +979,13 @@ struct TextElementExportView: View {
         Group {
             switch element.type {
             case .speechBubble:
-                SpeechBubbleExport(text: element.text)
+                SpeechBubbleExport(text: element.text, size: element.size)
             case .thoughtBubble:
-                ThoughtBubbleExport(text: element.text)
+                ThoughtBubbleExport(text: element.text, size: element.size)
             case .caption:
-                CaptionExport(text: element.text)
+                CaptionExport(text: element.text, size: element.size)
             case .soundEffect:
-                SoundEffectExport(text: element.text)
+                SoundEffectExport(text: element.text, size: element.size)
             }
         }
     }
@@ -960,121 +994,125 @@ struct TextElementExportView: View {
 // Export versions of text elements (non-interactive)
 struct SpeechBubbleExport: View {
     let text: String
+    let size: CGSize
     
     var body: some View {
         // Same alignment fix as the interactive view.
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color.white)
-                .frame(width: 120, height: 60)
+                .frame(width: size.width, height: size.height)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
                         .stroke(Color.black, lineWidth: 2)
                 )
             
             Path { path in
-                path.move(to: CGPoint(x: 40, y: 60))
-                path.addLine(to: CGPoint(x: 30, y: 80))
-                path.addLine(to: CGPoint(x: 60, y: 60))
+                path.move(to: CGPoint(x: size.width * 0.33, y: size.height))
+                path.addLine(to: CGPoint(x: size.width * 0.25, y: size.height + 20))
+                path.addLine(to: CGPoint(x: size.width * 0.5, y: size.height))
             }
             .fill(Color.white)
             .overlay(
                 Path { path in
-                    path.move(to: CGPoint(x: 40, y: 60))
-                    path.addLine(to: CGPoint(x: 30, y: 80))
-                    path.addLine(to: CGPoint(x: 60, y: 60))
+                    path.move(to: CGPoint(x: size.width * 0.33, y: size.height))
+                    path.addLine(to: CGPoint(x: size.width * 0.25, y: size.height + 20))
+                    path.addLine(to: CGPoint(x: size.width * 0.5, y: size.height))
                 }
                 .stroke(Color.black, lineWidth: 2)
             )
             
             Text(text)
-                .font(.system(size: 14))
+                .font(.system(size: min(14, size.width / 8)))
                 .multilineTextAlignment(.center)
-                .frame(width: 100, height: 40)
-                .position(x: 60, y: 30)
+                .frame(width: size.width * 0.85, height: size.height * 0.7)
+                .position(x: size.width / 2, y: size.height / 2)
         }
     }
 }
 
 struct ThoughtBubbleExport: View {
     let text: String
+    let size: CGSize
     
     var body: some View {
         ZStack {
             ZStack {
                 Circle()
                     .fill(Color.white)
-                    .frame(width: 100, height: 60)
+                    .frame(width: size.width, height: size.height * 0.8)
                     .overlay(Circle().stroke(Color.black, lineWidth: 2))
                 
                 Circle()
                     .fill(Color.white)
-                    .frame(width: 30, height: 30)
+                    .frame(width: size.width * 0.3, height: size.height * 0.3)
                     .overlay(Circle().stroke(Color.black, lineWidth: 2))
-                    .offset(x: -40, y: 20)
+                    .offset(x: -size.width * 0.35, y: size.height * 0.25)
                 
                 Circle()
                     .fill(Color.white)
-                    .frame(width: 20, height: 20)
+                    .frame(width: size.width * 0.2, height: size.height * 0.2)
                     .overlay(Circle().stroke(Color.black, lineWidth: 2))
-                    .offset(x: -50, y: 40)
+                    .offset(x: -size.width * 0.45, y: size.height * 0.45)
             }
             
             Text(text)
-                .font(.system(size: 14))
+                .font(.system(size: min(14, size.width / 8)))
                 .multilineTextAlignment(.center)
-                .frame(width: 80, height: 40)
+                .frame(width: size.width * 0.7, height: size.height * 0.5)
         }
     }
 }
 
 struct CaptionExport: View {
     let text: String
+    let size: CGSize
     
     var body: some View {
         ZStack {
             Rectangle()
                 .fill(Color.yellow.opacity(0.9))
-                .frame(width: 140, height: 40)
+                .frame(width: size.width, height: size.height)
                 .overlay(
                     Rectangle()
                         .stroke(Color.black, lineWidth: 2)
                 )
             
             Text(text)
-                .font(.system(size: 12))
+                .font(.system(size: min(12, size.width / 10)))
                 .multilineTextAlignment(.center)
-                .frame(width: 120, height: 30)
+                .frame(width: size.width * 0.9, height: size.height * 0.8)
         }
     }
 }
 
 struct SoundEffectExport: View {
     let text: String
+    let size: CGSize
     
     var body: some View {
         ZStack {
             ForEach(0..<8) { i in
                 Rectangle()
                     .fill(Color.orange)
-                    .frame(width: 100, height: 20)
+                    .frame(width: size.width * 1.2, height: size.height * 0.2)
                     .rotationEffect(.degrees(Double(i) * 45))
             }
             
             Circle()
                 .fill(Color.yellow)
-                .frame(width: 80, height: 80)
+                .frame(width: size.width * 0.8, height: size.height * 0.8)
                 .overlay(
                     Circle()
                         .stroke(Color.black, lineWidth: 3)
                 )
             
             Text(text.uppercased())
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: min(16, size.width / 6), weight: .bold))
                 .multilineTextAlignment(.center)
-                .frame(width: 60, height: 30)
+                .frame(width: size.width * 0.6, height: size.height * 0.4)
         }
-        .frame(width: 100, height: 100)
+        .frame(width: size.width, height: size.height)
     }
 }
 
