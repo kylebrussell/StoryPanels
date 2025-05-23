@@ -111,12 +111,13 @@ class OpenAIImageService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 60.0 // Increase timeout for image generation
         
+        // Construct request body according to the latest images/create API
+        // See https://platform.openai.com/docs/api-reference/images/create
         let requestBody: [String: Any] = [
             "model": "gpt-image-1",
             "prompt": prompt,
             "n": 1,
-            "size": "1024x1024",
-            "quality": "auto"
+            "size": "1024x1024"
         ]
         
         print("🔥 Request body: \(requestBody)")
@@ -154,23 +155,29 @@ class OpenAIImageService {
             
             guard let jsonResponse = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let dataArray = jsonResponse["data"] as? [[String: Any]],
-                  let firstImage = dataArray.first,
-                  let imageURLString = firstImage["url"] as? String,
-                  let imageURL = URL(string: imageURLString) else {
-                print("❌ Failed to parse image URL from response")
-                throw OpenAIError.noImageURL
+                  let firstImage = dataArray.first else {
+                print("❌ Failed to parse response JSON")
+                throw OpenAIError.invalidResponse
             }
             
-            print("🔥 Image URL: \(imageURLString)")
-            print("🔥 Downloading image...")
+            var imageData: Data?
             
-            // Download the generated image
-            let (imageData, _) = try await URLSession.shared.data(from: imageURL)
+            // The API can return either an expiring URL or a base64-encoded string.
+            if let imageURLString = firstImage["url"] as? String,
+               let imageURL = URL(string: imageURLString) {
+                print("🔥 Image URL: \(imageURLString)")
+                print("🔥 Downloading image…")
+                let (downloadedData, _) = try await URLSession.shared.data(from: imageURL)
+                imageData = downloadedData
+            } else if let base64String = firstImage["b64_json"] as? String,
+                      let decoded = Data(base64Encoded: base64String) {
+                print("🔥 Received base64-encoded image data")
+                imageData = decoded
+            }
             
-            print("🔥 Downloaded \(imageData.count) bytes")
-            
-            guard let uiImage = UIImage(data: imageData) else {
-                print("❌ Failed to create UIImage from data")
+            guard let finalData = imageData,
+                  let uiImage = UIImage(data: finalData) else {
+                print("❌ Failed to obtain UIImage data from response")
                 throw OpenAIError.imageDownloadFailed
             }
             
@@ -1250,7 +1257,7 @@ struct SettingsView: View {
                 
                 Section(header: Text("About")) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("This app uses OpenAI's DALL-E 3 to generate comic panel images.")
+                        Text("This app uses OpenAI's GPT-4o to generate comic panel images.")
                         Text("Your API key is stored securely on your device.")
                             .font(.caption)
                             .foregroundColor(.gray)
