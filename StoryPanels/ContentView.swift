@@ -381,6 +381,8 @@ struct ComicEditorView: View {
     @State private var showingSaveAlert = false
     @State private var saveError: Error?
     @State private var mostRecentTextElementIndex: Int?
+    // Focus state to detect when the prompt TextField is active
+    @FocusState private var isPromptFieldFocused: Bool
     @Environment(\.dismiss) var dismiss
     
     init(layout: PanelLayout) {
@@ -453,6 +455,7 @@ struct ComicEditorView: View {
                                 HStack {
                                     TextField("A superhero flying...", text: $comic.panels[selectedPanel].imagePrompt)
                                         .textFieldStyle(RoundedBorderTextFieldStyle())
+                                        .focused($isPromptFieldFocused)
                                     
                                     Button(action: {
                                         generateImage(for: selectedPanel)
@@ -512,6 +515,9 @@ struct ComicEditorView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Move content up slightly when the keyboard appears so the prompt field remains visible
+            .offset(y: isPromptFieldFocused ? -40 : 0)
+            .animation(.easeInOut(duration: 0.25), value: isPromptFieldFocused)
             .background(ComicTheme.background)
             .navigationTitle("Comic Editor")
             .navigationBarTitleDisplayMode(.inline)
