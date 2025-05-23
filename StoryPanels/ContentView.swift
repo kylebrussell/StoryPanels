@@ -348,102 +348,110 @@ struct ComicEditorView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Canvas Area
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 20) {
-                        ForEach(Array(comic.panels.enumerated()), id: \.element.id) { index, panel in
-                            PanelView(
-                                panel: $comic.panels[index],
-                                isSelected: selectedPanel == index
-                            )
-                            .onTapGesture {
-                                selectedPanel = index
-                            }
-                        }
-                    }
-                    .padding()
-                }
-                .background(Color.gray.opacity(0.1))
-                
-                // Tools
-                VStack(spacing: 16) {
-                    // Panel Selection
-                    if layout == .threePanel {
-                        HStack {
-                            ForEach(0..<3) { index in
-                                Button(action: {
-                                    selectedPanel = index
-                                }) {
-                                    Text("Panel \(index + 1)")
-                                        .font(.caption)
-                                        .foregroundColor(selectedPanel == index ? .white : .blue)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .background(
-                                            selectedPanel == index ? Color.blue : Color.clear
-                                        )
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .stroke(Color.blue, lineWidth: 1)
-                                        )
+                ScrollViewReader { proxy in
+                    VStack(spacing: 0) {
+                        // Canvas Area
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 20) {
+                                ForEach(Array(comic.panels.enumerated()), id: \.element.id) { index, panel in
+                                    PanelView(
+                                        panel: $comic.panels[index],
+                                        isSelected: selectedPanel == index
+                                    )
+                                    .id("panel_\(index)")
+                                    .onTapGesture {
+                                        selectedPanel = index
+                                    }
                                 }
                             }
+                            .padding()
                         }
-                    }
-                    
-                    // Image Generation
-                    VStack(spacing: 12) {
-                        Text("Describe the image for Panel \(selectedPanel + 1)")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                        .background(Color.gray.opacity(0.1))
                         
-                        HStack {
-                            TextField("A superhero flying...", text: $comic.panels[selectedPanel].imagePrompt)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                        // Tools
+                        VStack(spacing: 16) {
+                            // Panel Selection
+                            if layout == .threePanel {
+                                HStack {
+                                    ForEach(0..<3) { index in
+                                        Button(action: {
+                                            selectedPanel = index
+                                            withAnimation(.easeInOut(duration: 0.5)) {
+                                                proxy.scrollTo("panel_\(index)", anchor: .center)
+                                            }
+                                        }) {
+                                            Text("Panel \(index + 1)")
+                                                .font(.caption)
+                                                .foregroundColor(selectedPanel == index ? .white : .blue)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(
+                                                    selectedPanel == index ? Color.blue : Color.clear
+                                                )
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 6)
+                                                        .stroke(Color.blue, lineWidth: 1)
+                                                )
+                                        }
+                                    }
+                                }
+                            }
                             
-                            Button(action: {
-                                generateImage(for: selectedPanel)
-                            }) {
-                                if comic.panels[selectedPanel].isGenerating {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle())
-                                        .scaleEffect(0.8)
-                                } else {
-                                    Text("Generate")
-                                        .font(.caption)
+                            // Image Generation
+                            VStack(spacing: 12) {
+                                Text("Describe the image for Panel \(selectedPanel + 1)")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                
+                                HStack {
+                                    TextField("A superhero flying...", text: $comic.panels[selectedPanel].imagePrompt)
+                                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    
+                                    Button(action: {
+                                        generateImage(for: selectedPanel)
+                                    }) {
+                                        if comic.panels[selectedPanel].isGenerating {
+                                            ProgressView()
+                                                .progressViewStyle(CircularProgressViewStyle())
+                                                .scaleEffect(0.8)
+                                        } else {
+                                            Text("Generate")
+                                                .font(.caption)
+                                        }
+                                    }
+                                    .frame(width: 80)
+                                    .padding(.vertical, 6)
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(6)
+                                    .disabled(comic.panels[selectedPanel].isGenerating || comic.panels[selectedPanel].imagePrompt.isEmpty)
                                 }
                             }
-                            .frame(width: 80)
-                            .padding(.vertical, 6)
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(6)
-                            .disabled(comic.panels[selectedPanel].isGenerating || comic.panels[selectedPanel].imagePrompt.isEmpty)
-                        }
-                    }
-                    
-                    // Text Elements
-                    HStack(spacing: 12) {
-                        ForEach(TextElementType.allCases, id: \.self) { type in
-                            Button(action: {
-                                addTextElement(type: type)
-                            }) {
-                                VStack(spacing: 4) {
-                                    Image(systemName: type.icon)
-                                        .font(.system(size: 20))
-                                    Text(type.rawValue)
-                                        .font(.caption2)
+                            
+                            // Text Elements
+                            HStack(spacing: 12) {
+                                ForEach(TextElementType.allCases, id: \.self) { type in
+                                    Button(action: {
+                                        addTextElement(type: type)
+                                    }) {
+                                        VStack(spacing: 4) {
+                                            Image(systemName: type.icon)
+                                                .font(.system(size: 20))
+                                            Text(type.rawValue)
+                                                .font(.caption2)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
+                                        .background(Color.gray.opacity(0.1))
+                                        .cornerRadius(8)
+                                    }
                                 }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(8)
                             }
                         }
+                        .padding()
+                        .background(Color.white)
                     }
                 }
-                .padding()
-                .background(Color.white)
             }
             .navigationTitle("Comic Editor")
             .navigationBarTitleDisplayMode(.inline)
