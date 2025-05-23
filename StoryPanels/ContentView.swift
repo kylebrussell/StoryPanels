@@ -338,6 +338,7 @@ struct ComicEditorView: View {
     @State private var exportedImage: UIImage?
     @State private var showingSaveAlert = false
     @State private var saveError: Error?
+    @State private var mostRecentTextElementIndex: Int?
     @Environment(\.dismiss) var dismiss
     
     init(layout: PanelLayout) {
@@ -356,11 +357,17 @@ struct ComicEditorView: View {
                                 ForEach(Array(comic.panels.enumerated()), id: \.element.id) { index, panel in
                                     PanelView(
                                         panel: $comic.panels[index],
-                                        isSelected: selectedPanel == index
+                                        isSelected: selectedPanel == index,
+                                        onTextElementInteraction: { elementIndex in
+                                            if selectedPanel == index {
+                                                mostRecentTextElementIndex = elementIndex
+                                            }
+                                        }
                                     )
                                     .id("panel_\(index)")
                                     .onTapGesture {
                                         selectedPanel = index
+                                        mostRecentTextElementIndex = nil
                                     }
                                 }
                             }
@@ -379,6 +386,7 @@ struct ComicEditorView: View {
                                             withAnimation(.easeInOut(duration: 0.5)) {
                                                 proxy.scrollTo("panel_\(index)", anchor: .center)
                                             }
+                                            mostRecentTextElementIndex = nil
                                         }) {
                                             Text("Panel \(index + 1)")
                                                 .font(.caption)
@@ -445,6 +453,26 @@ struct ComicEditorView: View {
                                         .background(Color.gray.opacity(0.1))
                                         .cornerRadius(8)
                                     }
+                                }
+                            }
+                            
+                            // Remove Button
+                            if let mostRecentIndex = mostRecentTextElementIndex,
+                               mostRecentIndex < comic.panels[selectedPanel].textElements.count {
+                                Button(action: {
+                                    comic.panels[selectedPanel].textElements.remove(at: mostRecentIndex)
+                                    mostRecentTextElementIndex = nil
+                                }) {
+                                    HStack {
+                                        Image(systemName: "trash.fill")
+                                        Text("Remove Recent")
+                                    }
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.red)
+                                    .cornerRadius(8)
                                 }
                             }
                         }
@@ -564,6 +592,7 @@ struct ComicEditorView: View {
         var element = TextElement(type: type)
         element.position = CGPoint(x: 150, y: 100 + CGFloat(comic.panels[selectedPanel].textElements.count * 80))
         comic.panels[selectedPanel].textElements.append(element)
+        mostRecentTextElementIndex = comic.panels[selectedPanel].textElements.count - 1
     }
     
     private func exportComic() {
@@ -587,6 +616,7 @@ struct ComicEditorView: View {
 struct PanelView: View {
     @Binding var panel: ComicPanel
     let isSelected: Bool
+    let onTextElementInteraction: (Int) -> Void
     
     var body: some View {
         ZStack {
@@ -627,6 +657,9 @@ struct PanelView: View {
                     element: $panel.textElements[index],
                     onDelete: {
                         panel.textElements.remove(at: index)
+                    },
+                    onTextElementInteraction: {
+                        onTextElementInteraction(index)
                     }
                 )
             }
@@ -639,6 +672,7 @@ struct PanelView: View {
 struct TextElementView: View {
     @Binding var element: TextElement
     let onDelete: () -> Void
+    let onTextElementInteraction: () -> Void
     @State private var dragOffset = CGSize.zero
     @GestureState private var isDragging = false
     
@@ -646,13 +680,13 @@ struct TextElementView: View {
         Group {
             switch element.type {
             case .speechBubble:
-                SpeechBubbleView(text: $element.text, isEditing: $element.isEditing)
+                SpeechBubbleView(text: $element.text, isEditing: $element.isEditing, onTextElementInteraction: onTextElementInteraction)
             case .thoughtBubble:
-                ThoughtBubbleView(text: $element.text, isEditing: $element.isEditing)
+                ThoughtBubbleView(text: $element.text, isEditing: $element.isEditing, onTextElementInteraction: onTextElementInteraction)
             case .caption:
-                CaptionView(text: $element.text, isEditing: $element.isEditing)
+                CaptionView(text: $element.text, isEditing: $element.isEditing, onTextElementInteraction: onTextElementInteraction)
             case .soundEffect:
-                SoundEffectView(text: $element.text, isEditing: $element.isEditing)
+                SoundEffectView(text: $element.text, isEditing: $element.isEditing, onTextElementInteraction: onTextElementInteraction)
             }
         }
         .position(
@@ -666,6 +700,7 @@ struct TextElementView: View {
                 }
                 .onChanged { value in
                     dragOffset = value.translation
+                    onTextElementInteraction()
                 }
                 .onEnded { value in
                     element.position.x += value.translation.width
@@ -687,6 +722,7 @@ struct TextElementView: View {
 struct SpeechBubbleView: View {
     @Binding var text: String
     @Binding var isEditing: Bool
+    let onTextElementInteraction: () -> Void
     
     var body: some View {
         // Align top-left so the rectangle stays anchored at the top and the
@@ -728,6 +764,7 @@ struct SpeechBubbleView: View {
                         .font(.system(size: 14))
                         .onTapGesture {
                             isEditing = true
+                            onTextElementInteraction()
                         }
                 }
             }
@@ -741,6 +778,7 @@ struct SpeechBubbleView: View {
 struct ThoughtBubbleView: View {
     @Binding var text: String
     @Binding var isEditing: Bool
+    let onTextElementInteraction: () -> Void
     
     var body: some View {
         ZStack {
@@ -778,6 +816,7 @@ struct ThoughtBubbleView: View {
                     .frame(width: 80, height: 40)
                     .onTapGesture {
                         isEditing = true
+                        onTextElementInteraction()
                     }
             }
         }
@@ -787,6 +826,7 @@ struct ThoughtBubbleView: View {
 struct CaptionView: View {
     @Binding var text: String
     @Binding var isEditing: Bool
+    let onTextElementInteraction: () -> Void
     
     var body: some View {
         ZStack {
@@ -811,6 +851,7 @@ struct CaptionView: View {
                     .frame(width: 120, height: 30)
                     .onTapGesture {
                         isEditing = true
+                        onTextElementInteraction()
                     }
             }
         }
@@ -820,6 +861,7 @@ struct CaptionView: View {
 struct SoundEffectView: View {
     @Binding var text: String
     @Binding var isEditing: Bool
+    let onTextElementInteraction: () -> Void
     
     var body: some View {
         ZStack {
@@ -853,6 +895,7 @@ struct SoundEffectView: View {
                     .frame(width: 60, height: 30)
                     .onTapGesture {
                         isEditing = true
+                        onTextElementInteraction()
                     }
             }
         }
