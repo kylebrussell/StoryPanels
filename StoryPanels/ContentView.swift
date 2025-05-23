@@ -274,13 +274,16 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 30) {
-                Text("StoryPanels")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                Image("AppTitle")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 200)
                 
-                Image(systemName: "book.pages.fill")
-                    .font(.system(size: 80))
-                    .foregroundColor(.blue)
+                Image("LaunchLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 200, height: 200)
+                    .padding(.top, -40)
                 
                 VStack(spacing: 20) {
                     Text("Select Layout")
@@ -309,26 +312,28 @@ struct ContentView: View {
 
             }
             .padding()
-        }
-        .background(ComicTheme.background)
-        .ignoresSafeArea()
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    showingSettings = true
-                }) {
-                    Image(systemName: "gear")
+            // Ensure the background color fills the whole screen area (including beneath the navigation bar)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(ComicTheme.background)
+            .ignoresSafeArea()
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showingSettings = true
+                    }) {
+                        Image(systemName: "gear")
+                    }
                 }
             }
+            .sheet(isPresented: $showingEditor) {
+                ComicEditorView(layout: selectedLayout)
+            }
+            .sheet(isPresented: $showingSettings) {
+                SettingsView()
+            }
+            .toolbarBackground(ComicTheme.background, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
         }
-        .sheet(isPresented: $showingEditor) {
-            ComicEditorView(layout: selectedLayout)
-        }
-        .sheet(isPresented: $showingSettings) {
-            SettingsView()
-        }
-        .toolbarBackground(ComicTheme.background, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
     }
 }
 
@@ -1194,6 +1199,7 @@ struct ExportView: View {
                 }
             }
         }
+        // NavigationView already inherits the background from its child; keeping this here for safety
         .background(ComicTheme.background)
         .ignoresSafeArea()
         .toolbarBackground(ComicTheme.background, for: .navigationBar)
@@ -1270,10 +1276,9 @@ struct SettingsView: View {
             .onAppear {
                 tempApiKey = apiKey
             }
+            // Remove the default grouped background so our custom colour shows through
+            .scrollContentBackground(.hidden)
+            .background(ComicTheme.background)
         }
-        .background(ComicTheme.background)
-        .ignoresSafeArea()
-        .toolbarBackground(ComicTheme.background, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
     }
 }
