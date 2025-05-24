@@ -1415,11 +1415,7 @@ struct ComicExportView: View {
                             .clipped()
                     }
                     
-                    // Text elements
-                    ForEach(panel.textElements) { element in
-                        TextElementExportView(element: element)
-                            .position(element.position)
-                    }
+                    // Text elements removed - now handled by GPT-4o in generated image
                 }
                 .frame(width: 300, height: 300)
             }
