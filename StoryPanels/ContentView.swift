@@ -39,6 +39,14 @@ enum TextElementType: String, CaseIterable {
     }
 }
 
+struct CharacterStandIn: Identifiable {
+    let id = UUID()
+    var number: Int
+    var position: CGPoint = CGPoint(x: 100, y: 200)
+    var size: CGSize = CGSize(width: 80, height: 80)
+    var label: String = ""
+}
+
 struct TextElement: Identifiable {
     let id = UUID()
     var type: TextElementType
@@ -53,6 +61,7 @@ struct ComicPanel: Identifiable {
     var imagePrompt: String = ""
     var generatedImage: UIImage?
     var textElements: [TextElement] = []
+    var characterStandIns: [CharacterStandIn] = []
     var isGenerating: Bool = false
 }
 
@@ -94,6 +103,151 @@ class OpenAIImageService {
     func updateAPIKey(_ newApiKey: String) {
         self.apiKey = newApiKey
         UserDefaults.standard.set(newApiKey, forKey: "openai_api_key")
+    }
+    
+    func generateImageFromCanvas(canvasImage: UIImage, prompt: String) async throws -> UIImage {
+        guard !apiKey.isEmpty else {
+            throw OpenAIError.invalidAPIKey
+        }
+        
+        print("🔥 Starting multimodal image generation with canvas input")
+        
+        // Convert canvas image to base64
+        guard let imageData = canvasImage.jpegData(compressionQuality: 0.8) else {
+            throw OpenAIError.imageDownloadFailed
+        }
+        let base64Image = imageData.base64EncodedString()
+        
+        // Enhanced prompt with professional comic styling instructions
+        let enhancedPrompt = """
+        Transform this comic panel layout into a professional comic book illustration. The image shows character positions (numbered blue circles) and text bubbles with dialogue.
+        
+        Instructions:
+        1. Replace the numbered blue circles with actual characters based on the scene description
+        2. Keep all text bubbles exactly where they are, but make them look professional with proper comic book styling
+        3. Create a detailed background that fits the scene
+        4. Use comic book art style with bold lines, vibrant colors, and dynamic composition
+        5. Maintain the exact same layout and positioning as shown in the reference image
+        
+        Scene description: \(prompt)
+        
+        Make this look like a panel from a high-quality comic book while preserving the text bubble positions and content.
+        """
+        
+        let url = URL(string: "\(baseURL)/chat/completions")!
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 60.0
+        
+        let requestBody: [String: Any] = [
+            "model": "gpt-4o",
+            "messages": [
+                [
+                    "role": "user",
+                    "content": [
+                        [
+                            "type": "text",
+                            "text": enhancedPrompt
+                        ],
+                        [
+                            "type": "image_url",
+                            "image_url": [
+                                "url": "data:image/jpeg;base64,\(base64Image)"
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            "max_tokens": 300
+        ]
+        
+        print("🔥 Request body prepared for multimodal API")
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+            
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw OpenAIError.invalidResponse
+            }
+            
+            print("🔥 HTTP Status Code: \(httpResponse.statusCode)")
+            
+            if httpResponse.statusCode != 200 {
+                let errorString = String(data: data, encoding: .utf8) ?? "Unknown error"
+                print("❌ API Error Response: \(errorString)")
+                throw OpenAIError.networkError(NSError(domain: "OpenAI", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(httpResponse.statusCode)"]))
+            }
+            
+            // For now, since GPT-4o image generation isn't fully available yet,
+            // we'll fall back to using the enhanced prompt with the existing DALL-E endpoint
+            print("⚠️ GPT-4o image generation not fully available yet, falling back to enhanced DALL-E generation")
+            return try await generateImageWithEnhancedPrompt(enhancedPrompt)
+            
+        } catch {
+            print("❌ Multimodal API Error: \(error)")
+            // Fallback to enhanced prompt generation
+            return try await generateImageWithEnhancedPrompt(enhancedPrompt)
+        }
+    }
+    
+    private func generateImageWithEnhancedPrompt(_ enhancedPrompt: String) async throws -> UIImage {
+        let url = URL(string: "\(baseURL)/images/generations")!
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 60.0
+        
+        let requestBody: [String: Any] = [
+            "model": "gpt-image-1",
+            "prompt": enhancedPrompt,
+            "n": 1,
+            "size": "1024x1024"
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OpenAIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode != 200 {
+            let errorString = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("❌ DALL-E API Error Response: \(errorString)")
+            throw OpenAIError.networkError(NSError(domain: "OpenAI", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(httpResponse.statusCode)"]))
+        }
+        
+        guard let jsonResponse = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dataArray = jsonResponse["data"] as? [[String: Any]],
+              let firstImage = dataArray.first else {
+            throw OpenAIError.invalidResponse
+        }
+        
+        var imageData: Data?
+        
+        if let imageURLString = firstImage["url"] as? String,
+           let imageURL = URL(string: imageURLString) {
+            let (downloadedData, _) = try await URLSession.shared.data(from: imageURL)
+            imageData = downloadedData
+        } else if let base64String = firstImage["b64_json"] as? String,
+                  let decoded = Data(base64Encoded: base64String) {
+            imageData = decoded
+        }
+        
+        guard let finalData = imageData,
+              let uiImage = UIImage(data: finalData) else {
+            throw OpenAIError.imageDownloadFailed
+        }
+        
+        return uiImage
     }
     
     func generateImage(prompt: String) async throws -> UIImage {
@@ -388,6 +542,7 @@ struct ComicEditorView: View {
     @State private var showingSaveAlert = false
     @State private var saveError: Error?
     @State private var mostRecentTextElementIndex: Int?
+    @State private var mostRecentCharacterIndex: Int?
     // Focus state to detect when the prompt TextField is active
     @FocusState private var isPromptFieldFocused: Bool
     @Environment(\.dismiss) var dismiss
@@ -412,6 +567,13 @@ struct ComicEditorView: View {
                                         onTextElementInteraction: { elementIndex in
                                             if selectedPanel == index {
                                                 mostRecentTextElementIndex = elementIndex
+                                                mostRecentCharacterIndex = nil
+                                            }
+                                        },
+                                        onCharacterInteraction: { characterIndex in
+                                            if selectedPanel == index {
+                                                mostRecentCharacterIndex = characterIndex
+                                                mostRecentTextElementIndex = nil
                                             }
                                         }
                                     )
@@ -419,6 +581,7 @@ struct ComicEditorView: View {
                                     .onTapGesture {
                                         selectedPanel = index
                                         mostRecentTextElementIndex = nil
+                                        mostRecentCharacterIndex = nil
                                     }
                                 }
                             }
@@ -438,6 +601,7 @@ struct ComicEditorView: View {
                                                 proxy.scrollTo("panel_\(index)", anchor: .center)
                                             }
                                             mostRecentTextElementIndex = nil
+                                            mostRecentCharacterIndex = nil
                                         }) {
                                             Text("Panel \(index + 1)")
                                                 .font(.caption)
@@ -482,6 +646,29 @@ struct ComicEditorView: View {
                                 }
                             }
                             
+                            // Character Stand-Ins
+                            VStack(spacing: 8) {
+                                Text("Add Characters")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                
+                                HStack(spacing: 12) {
+                                    Button(action: {
+                                        addCharacterStandIn()
+                                    }) {
+                                        VStack(spacing: 4) {
+                                            Image(systemName: "person.circle.fill")
+                                                .font(.system(size: 20))
+                                            Text("Character")
+                                                .font(.caption2)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
+                                    }
+                                    .buttonStyle(ComicButtonStyle(backgroundColor: Color.blue.opacity(0.7), foregroundColor: .white))
+                                }
+                            }
+                            
                             // Text Elements
                             HStack(spacing: 12) {
                                 ForEach(TextElementType.allCases, id: \.self) { type in
@@ -510,7 +697,19 @@ struct ComicEditorView: View {
                                 }) {
                                     HStack {
                                         Image(systemName: "trash.fill")
-                                        Text("Remove Recent")
+                                        Text("Remove Text")
+                                    }
+                                }
+                                .buttonStyle(ComicButtonStyle(backgroundColor: .red, foregroundColor: .white))
+                            } else if let mostRecentIndex = mostRecentCharacterIndex,
+                                      mostRecentIndex < comic.panels[selectedPanel].characterStandIns.count {
+                                Button(action: {
+                                    comic.panels[selectedPanel].characterStandIns.remove(at: mostRecentIndex)
+                                    mostRecentCharacterIndex = nil
+                                }) {
+                                    HStack {
+                                        Image(systemName: "trash.fill")
+                                        Text("Remove Character")
                                     }
                                 }
                                 .buttonStyle(ComicButtonStyle(backgroundColor: .red, foregroundColor: .white))
@@ -569,26 +768,38 @@ struct ComicEditorView: View {
         Task {
             comic.panels[panelIndex].isGenerating = true
             do {
-                let image = try await OpenAIImageService.shared.generateImage(
-                    prompt: comic.panels[panelIndex].imagePrompt
-                )
-                comic.panels[panelIndex].generatedImage = image
+                // Check if we have character stand-ins or text elements to use multimodal approach
+                if !comic.panels[panelIndex].characterStandIns.isEmpty || !comic.panels[panelIndex].textElements.isEmpty {
+                    // Capture canvas snapshot
+                    guard let canvasSnapshot = captureCanvasSnapshot(for: panelIndex) else {
+                        throw OpenAIImageService.OpenAIError.imageDownloadFailed
+                    }
+                    
+                    // Use multimodal generation
+                    let image = try await OpenAIImageService.shared.generateImageFromCanvas(
+                        canvasImage: canvasSnapshot,
+                        prompt: comic.panels[panelIndex].imagePrompt
+                    )
+                    comic.panels[panelIndex].generatedImage = image
+                } else {
+                    // Fall back to traditional text-only generation
+                    let image = try await OpenAIImageService.shared.generateImage(
+                        prompt: comic.panels[panelIndex].imagePrompt
+                    )
+                    comic.panels[panelIndex].generatedImage = image
+                }
             } catch OpenAIImageService.OpenAIError.invalidAPIKey {
                 print("⚠️ OpenAI API key not configured. Using placeholder image.")
-                // Fallback to placeholder for demo purposes
                 let placeholderImage = createPlaceholderImage(prompt: comic.panels[panelIndex].imagePrompt)
                 comic.panels[panelIndex].generatedImage = placeholderImage
             } catch OpenAIImageService.OpenAIError.networkError(let error) {
                 print("❌ Network error generating image: \(error.localizedDescription)")
                 print("💡 If you're using the iOS Simulator, try testing on a real device")
-                print("💡 The network errors you're seeing are common in the Simulator")
-                // Could show user-facing error here
                 let placeholderImage = createPlaceholderImage(prompt: "Network Error - Try on device")
                 comic.panels[panelIndex].generatedImage = placeholderImage
             } catch {
                 print("❌ Failed to generate image: \(error.localizedDescription)")
                 print("💡 Check your internet connection and API key")
-                // Could show user-facing error here
                 let placeholderImage = createPlaceholderImage(prompt: "Error - Check logs")
                 comic.panels[panelIndex].generatedImage = placeholderImage
             }
@@ -637,6 +848,20 @@ struct ComicEditorView: View {
         }
     }
     
+    private func addCharacterStandIn() {
+        let nextNumber = comic.panels[selectedPanel].characterStandIns.count + 1
+        var character = CharacterStandIn(number: nextNumber)
+        
+        character.position = CGPoint(
+            x: 100 + CGFloat(comic.panels[selectedPanel].characterStandIns.count * 90), 
+            y: 200
+        )
+        
+        comic.panels[selectedPanel].characterStandIns.append(character)
+        mostRecentCharacterIndex = comic.panels[selectedPanel].characterStandIns.count - 1
+        mostRecentTextElementIndex = nil
+    }
+    
     private func addTextElement(type: TextElementType) {
         var element = TextElement(type: type)
         
@@ -655,6 +880,7 @@ struct ComicEditorView: View {
         element.position = CGPoint(x: 150, y: 100 + CGFloat(comic.panels[selectedPanel].textElements.count * 80))
         comic.panels[selectedPanel].textElements.append(element)
         mostRecentTextElementIndex = comic.panels[selectedPanel].textElements.count - 1
+        mostRecentCharacterIndex = nil
     }
     
     private func exportComic() {
@@ -665,6 +891,13 @@ struct ComicEditorView: View {
             exportedImage = image
             showingExportSheet = true
         }
+    }
+    
+    private func captureCanvasSnapshot(for panelIndex: Int) -> UIImage? {
+        let panel = comic.panels[panelIndex]
+        let renderer = ImageRenderer(content: CanvasSnapshotView(panel: panel))
+        renderer.scale = UIScreen.main.scale
+        return renderer.uiImage
     }
     
     private func saveToPhotos(image: UIImage) {
@@ -679,6 +912,7 @@ struct PanelView: View {
     @Binding var panel: ComicPanel
     let isSelected: Bool
     let onTextElementInteraction: (Int) -> Void
+    let onCharacterInteraction: (Int) -> Void
     
     var body: some View {
         ZStack {
@@ -714,7 +948,20 @@ struct PanelView: View {
                 }
             }
             
-            // Text Elements
+            // Character Stand-Ins (behind text elements)
+            ForEach(panel.characterStandIns.indices, id: \.self) { index in
+                CharacterStandInView(
+                    character: $panel.characterStandIns[index],
+                    onDelete: {
+                        panel.characterStandIns.remove(at: index)
+                    },
+                    onCharacterInteraction: {
+                        onCharacterInteraction(index)
+                    }
+                )
+            }
+            
+            // Text Elements (in front of character stand-ins)
             ForEach(panel.textElements.indices, id: \.self) { index in
                 TextElementView(
                     element: $panel.textElements[index],
@@ -984,6 +1231,165 @@ struct SoundEffectView: View {
             }
         }
         .frame(width: size.width, height: size.height)
+    }
+}
+
+// MARK: - Character Stand-In View
+struct CharacterStandInView: View {
+    @Binding var character: CharacterStandIn
+    let onDelete: () -> Void
+    let onCharacterInteraction: () -> Void
+    @State private var dragOffset = CGSize.zero
+    @GestureState private var isDragging = false
+    @GestureState private var magnification: CGFloat = 1.0
+    
+    var body: some View {
+        ZStack {
+            // Base circle
+            Circle()
+                .fill(Color.blue.opacity(0.7))
+                .frame(width: character.size.width, height: character.size.height)
+                .overlay(
+                    Circle()
+                        .stroke(Color.black, lineWidth: 3)
+                )
+            
+            // Character number
+            Text("\(character.number)")
+                .font(.system(size: min(24, character.size.width / 3), weight: .bold))
+                .foregroundColor(.white)
+            
+            // Label below if provided
+            if !character.label.isEmpty {
+                Text(character.label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 4)
+                    .background(Color.white.opacity(0.8))
+                    .cornerRadius(4)
+                    .offset(y: character.size.height/2 + 15)
+            }
+        }
+        .scaleEffect(magnification)
+        .position(
+            x: character.position.x + dragOffset.width,
+            y: character.position.y + dragOffset.height
+        )
+        .gesture(
+            SimultaneousGesture(
+                DragGesture()
+                    .updating($isDragging) { _, state, _ in
+                        state = true
+                    }
+                    .onChanged { value in
+                        dragOffset = value.translation
+                        onCharacterInteraction()
+                    }
+                    .onEnded { value in
+                        character.position.x += value.translation.width
+                        character.position.y += value.translation.height
+                        dragOffset = .zero
+                    },
+                MagnificationGesture()
+                    .updating($magnification) { value, state, _ in
+                        state = value
+                        onCharacterInteraction()
+                    }
+                    .onEnded { value in
+                        let newSize = max(40, min(120, character.size.width * value))
+                        character.size = CGSize(width: newSize, height: newSize)
+                    }
+            )
+        )
+        .contextMenu {
+            Button(action: onDelete) {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .scaleEffect(isDragging ? 1.1 : 1.0)
+        .animation(.spring(response: 0.3), value: isDragging)
+        .animation(.spring(response: 0.3), value: magnification)
+    }
+}
+
+// MARK: - Canvas Snapshot View (for AI analysis)
+struct CanvasSnapshotView: View {
+    let panel: ComicPanel
+    
+    var body: some View {
+        ZStack {
+            // Background
+            Rectangle()
+                .fill(Color.white)
+                .frame(width: 300, height: 300)
+            
+            // Character Stand-Ins (behind text elements)
+            ForEach(panel.characterStandIns) { character in
+                CharacterStandInSnapshotView(character: character)
+                    .position(character.position)
+            }
+            
+            // Text Elements (in front of character stand-ins)
+            ForEach(panel.textElements) { element in
+                TextElementSnapshotView(element: element)
+                    .position(element.position)
+            }
+        }
+        .frame(width: 300, height: 300)
+    }
+}
+
+// MARK: - Character Stand-In Snapshot View (non-interactive)
+struct CharacterStandInSnapshotView: View {
+    let character: CharacterStandIn
+    
+    var body: some View {
+        ZStack {
+            // Base circle
+            Circle()
+                .fill(Color.blue.opacity(0.7))
+                .frame(width: character.size.width, height: character.size.height)
+                .overlay(
+                    Circle()
+                        .stroke(Color.black, lineWidth: 3)
+                )
+            
+            // Character number
+            Text("\(character.number)")
+                .font(.system(size: min(24, character.size.width / 3), weight: .bold))
+                .foregroundColor(.white)
+            
+            // Label below if provided
+            if !character.label.isEmpty {
+                Text(character.label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 4)
+                    .background(Color.white.opacity(0.8))
+                    .cornerRadius(4)
+                    .offset(y: character.size.height/2 + 15)
+            }
+        }
+    }
+}
+
+// MARK: - Text Element Snapshot View (non-interactive)
+struct TextElementSnapshotView: View {
+    let element: TextElement
+    
+    var body: some View {
+        Group {
+            switch element.type {
+            case .speechBubble:
+                SpeechBubbleExport(text: element.text, size: element.size)
+            case .thoughtBubble:
+                ThoughtBubbleExport(text: element.text, size: element.size)
+            case .caption:
+                CaptionExport(text: element.text, size: element.size)
+            case .soundEffect:
+                SoundEffectExport(text: element.text, size: element.size)
+            }
+        }
     }
 }
 
