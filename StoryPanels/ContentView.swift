@@ -110,65 +110,69 @@ class OpenAIImageService {
             throw OpenAIError.invalidAPIKey
         }
         
-        print("🔥 Starting multimodal image generation with canvas input")
+        print("🔥 Starting image edit with canvas input using OpenAI edits API")
         
-        // Convert canvas image to base64
-        guard let imageData = canvasImage.jpegData(compressionQuality: 0.8) else {
+        // Convert canvas image to PNG data (required for edits API)
+        guard let imageData = canvasImage.pngData() else {
             throw OpenAIError.imageDownloadFailed
         }
-        let base64Image = imageData.base64EncodedString()
         
-        // Enhanced prompt with professional comic styling instructions
+        // Enhanced prompt for the edits API
         let enhancedPrompt = """
-        Transform this comic panel layout into a professional comic book illustration. The image shows character positions (numbered blue circles) and text bubbles with dialogue.
-        
-        Instructions:
-        1. Replace the numbered blue circles with actual characters based on the scene description
-        2. Keep all text bubbles exactly where they are, but make them look professional with proper comic book styling
-        3. Create a detailed background that fits the scene
-        4. Use comic book art style with bold lines, vibrant colors, and dynamic composition
-        5. Maintain the exact same layout and positioning as shown in the reference image
-        
-        Scene description: \(prompt)
-        
-        Make this look like a panel from a high-quality comic book while preserving the text bubble positions and content.
+        Transform this comic panel layout into a professional comic book illustration. The numbered blue circles are placeholders that must be completely replaced with actual illustrated characters. Remove all blue circles and replace each numbered position with a fully drawn character that fits the scene. Remove any existing text bubbles and create new professional comic book style speech/thought bubbles with proper text. Add a detailed background scene. Use comic book art style with bold lines, vibrant colors, and dynamic composition. Scene description: \(prompt)
         """
         
-        let url = URL(string: "\(baseURL)/chat/completions")!
+        let url = URL(string: "\(baseURL)/images/edits")!
         
+        // Create multipart form data
+        let boundary = "Boundary-\(UUID().uuidString)"
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 60.0
         
-        let requestBody: [String: Any] = [
-            "model": "gpt-4o",
-            "messages": [
-                [
-                    "role": "user",
-                    "content": [
-                        [
-                            "type": "text",
-                            "text": enhancedPrompt
-                        ],
-                        [
-                            "type": "image_url",
-                            "image_url": [
-                                "url": "data:image/jpeg;base64,\(base64Image)"
-                            ]
-                        ]
-                    ]
-                ]
-            ],
-            "max_tokens": 300
-        ]
+        var formData = Data()
         
-        print("🔥 Request body prepared for multimodal API")
+        // Add model parameter first
+        formData.append("--\(boundary)\r\n".data(using: .utf8)!)
+        formData.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
+        formData.append("gpt-image-1".data(using: .utf8)!)
+        formData.append("\r\n".data(using: .utf8)!)
+        
+        // Add image data
+        formData.append("--\(boundary)\r\n".data(using: .utf8)!)
+        formData.append("Content-Disposition: form-data; name=\"image\"; filename=\"canvas.png\"\r\n".data(using: .utf8)!)
+        formData.append("Content-Type: image/png\r\n\r\n".data(using: .utf8)!)
+        formData.append(imageData)
+        formData.append("\r\n".data(using: .utf8)!)
+        
+        // Add prompt
+        formData.append("--\(boundary)\r\n".data(using: .utf8)!)
+        formData.append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n".data(using: .utf8)!)
+        formData.append(enhancedPrompt.data(using: .utf8)!)
+        formData.append("\r\n".data(using: .utf8)!)
+        
+        // Add n parameter (number of images)
+        formData.append("--\(boundary)\r\n".data(using: .utf8)!)
+        formData.append("Content-Disposition: form-data; name=\"n\"\r\n\r\n".data(using: .utf8)!)
+        formData.append("1".data(using: .utf8)!)
+        formData.append("\r\n".data(using: .utf8)!)
+        
+        // Add size parameter
+        formData.append("--\(boundary)\r\n".data(using: .utf8)!)
+        formData.append("Content-Disposition: form-data; name=\"size\"\r\n\r\n".data(using: .utf8)!)
+        formData.append("1024x1024".data(using: .utf8)!)
+        formData.append("\r\n".data(using: .utf8)!)
+        
+        // Close boundary
+        formData.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        
+        request.httpBody = formData
+        
+        print("🔥 Sending request to image edits API")
         
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-            
             let (data, response) = try await URLSession.shared.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -179,76 +183,60 @@ class OpenAIImageService {
             
             if httpResponse.statusCode != 200 {
                 let errorString = String(data: data, encoding: .utf8) ?? "Unknown error"
-                print("❌ API Error Response: \(errorString)")
+                print("❌ Image Edit API Error Response: \(errorString)")
+                
+                if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let error = errorData["error"] as? [String: Any],
+                   let message = error["message"] as? String {
+                    print("❌ OpenAI Image Edit API Error: \(message)")
+                }
                 throw OpenAIError.networkError(NSError(domain: "OpenAI", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(httpResponse.statusCode)"]))
             }
             
-            // For now, since GPT-4o image generation isn't fully available yet,
-            // we'll fall back to using the enhanced prompt with the existing DALL-E endpoint
-            print("⚠️ GPT-4o image generation not fully available yet, falling back to enhanced DALL-E generation")
-            return try await generateImageWithEnhancedPrompt(enhancedPrompt)
+            let responseString = String(data: data, encoding: .utf8) ?? "Unable to decode response"
+            print("🔥 Image Edit API Response: \(responseString)")
             
+            guard let jsonResponse = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let dataArray = jsonResponse["data"] as? [[String: Any]],
+                  let firstImage = dataArray.first else {
+                print("❌ Failed to parse image edit response JSON")
+                throw OpenAIError.invalidResponse
+            }
+            
+            var imageData: Data?
+            
+            // The API can return either an expiring URL or a base64-encoded string
+            if let imageURLString = firstImage["url"] as? String,
+               let imageURL = URL(string: imageURLString) {
+                print("🔥 Image URL: \(imageURLString)")
+                print("🔥 Downloading edited image...")
+                let (downloadedData, _) = try await URLSession.shared.data(from: imageURL)
+                imageData = downloadedData
+            } else if let base64String = firstImage["b64_json"] as? String,
+                      let decoded = Data(base64Encoded: base64String) {
+                print("🔥 Received base64-encoded edited image data")
+                imageData = decoded
+            }
+            
+            guard let finalData = imageData,
+                  let uiImage = UIImage(data: finalData) else {
+                print("❌ Failed to obtain UIImage data from edit response")
+                throw OpenAIError.imageDownloadFailed
+            }
+            
+            print("✅ Successfully edited image using OpenAI edits API!")
+            return uiImage
+            
+        } catch let error as OpenAIError {
+            print("❌ OpenAI Edit Error: \(error)")
+            throw error
         } catch {
-            print("❌ Multimodal API Error: \(error)")
-            // Fallback to enhanced prompt generation
-            return try await generateImageWithEnhancedPrompt(enhancedPrompt)
+            print("❌ Network Error in image edit: \(error)")
+            print("❌ Error Details: \(error.localizedDescription)")
+            throw OpenAIError.networkError(error)
         }
     }
     
-    private func generateImageWithEnhancedPrompt(_ enhancedPrompt: String) async throws -> UIImage {
-        let url = URL(string: "\(baseURL)/images/generations")!
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 60.0
-        
-        let requestBody: [String: Any] = [
-            "model": "gpt-image-1",
-            "prompt": enhancedPrompt,
-            "n": 1,
-            "size": "1024x1024"
-        ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw OpenAIError.invalidResponse
-        }
-        
-        if httpResponse.statusCode != 200 {
-            let errorString = String(data: data, encoding: .utf8) ?? "Unknown error"
-            print("❌ DALL-E API Error Response: \(errorString)")
-            throw OpenAIError.networkError(NSError(domain: "OpenAI", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(httpResponse.statusCode)"]))
-        }
-        
-        guard let jsonResponse = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let dataArray = jsonResponse["data"] as? [[String: Any]],
-              let firstImage = dataArray.first else {
-            throw OpenAIError.invalidResponse
-        }
-        
-        var imageData: Data?
-        
-        if let imageURLString = firstImage["url"] as? String,
-           let imageURL = URL(string: imageURLString) {
-            let (downloadedData, _) = try await URLSession.shared.data(from: imageURL)
-            imageData = downloadedData
-        } else if let base64String = firstImage["b64_json"] as? String,
-                  let decoded = Data(base64Encoded: base64String) {
-            imageData = decoded
-        }
-        
-        guard let finalData = imageData,
-              let uiImage = UIImage(data: finalData) else {
-            throw OpenAIError.imageDownloadFailed
-        }
-        
-        return uiImage
-    }
     
     func generateImage(prompt: String) async throws -> UIImage {
         guard !apiKey.isEmpty else {
