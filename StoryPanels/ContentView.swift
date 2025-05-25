@@ -548,6 +548,9 @@ struct ComicEditorView: View {
                         // Canvas Area
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 20) {
+                                if layout == .single {
+                                    Spacer()
+                                }
                                 ForEach(Array(comic.panels.enumerated()), id: \.element.id) { index, panel in
                                     PanelView(
                                         panel: $comic.panels[index],
@@ -572,9 +575,14 @@ struct ComicEditorView: View {
                                         mostRecentCharacterIndex = nil
                                     }
                                 }
+                                if layout == .single {
+                                    Spacer()
+                                }
                             }
                             .padding()
+                            .frame(maxWidth: .infinity)
                         }
+                        .frame(maxWidth: .infinity)
                         .background(ComicTheme.background)
                         
                         // Tools
