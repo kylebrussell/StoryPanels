@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import Photos
 import AuthenticationServices
 
 // MARK: - Models
@@ -897,9 +898,15 @@ struct ComicEditorView: View {
     }
     
     private func saveToPhotos(image: UIImage) {
-        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-        showingExportSheet = false
-        showingSaveAlert = true
+        PHPhotoLibrary.shared().performChanges({
+            PHAssetChangeRequest.creationRequestForAsset(from: image)
+        }) { success, error in
+            DispatchQueue.main.async {
+                self.saveError = error
+                self.showingExportSheet = false
+                self.showingSaveAlert = true
+            }
+        }
     }
 }
 
