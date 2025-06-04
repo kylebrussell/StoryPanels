@@ -382,7 +382,7 @@ class OpenAIImageService {
 
 // MARK: - Comic Theme & Styles
 
-/// Centralised colours & modifiers to give the app a fun comic-book vibe.
+/// Centralized colors & modifiers to give the app a fun comic-book vibe.
 struct ComicTheme {
     /// A light off-white, reminiscent of comic book paper.
     static let background = Color(red: 0.98, green: 0.95, blue: 0.85)
