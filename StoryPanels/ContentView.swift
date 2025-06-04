@@ -763,7 +763,9 @@ struct ComicEditorView: View {
     
     private func generateImage(for panelIndex: Int) {
         Task {
-            comic.panels[panelIndex].isGenerating = true
+            await MainActor.run {
+                comic.panels[panelIndex].isGenerating = true
+            }
             do {
                 // Check if we have character stand-ins or text elements to use multimodal approach
                 if !comic.panels[panelIndex].characterStandIns.isEmpty || !comic.panels[panelIndex].textElements.isEmpty {
@@ -771,36 +773,48 @@ struct ComicEditorView: View {
                     guard let canvasSnapshot = captureCanvasSnapshot(for: panelIndex) else {
                         throw OpenAIImageService.OpenAIError.imageDownloadFailed
                     }
-                    
+
                     // Use multimodal generation
                     let image = try await OpenAIImageService.shared.generateImageFromCanvas(
                         canvasImage: canvasSnapshot,
                         prompt: comic.panels[panelIndex].imagePrompt
                     )
-                    comic.panels[panelIndex].generatedImage = image
+                    await MainActor.run {
+                        comic.panels[panelIndex].generatedImage = image
+                    }
                 } else {
                     // Fall back to traditional text-only generation
                     let image = try await OpenAIImageService.shared.generateImage(
                         prompt: comic.panels[panelIndex].imagePrompt
                     )
-                    comic.panels[panelIndex].generatedImage = image
+                    await MainActor.run {
+                        comic.panels[panelIndex].generatedImage = image
+                    }
                 }
             } catch OpenAIImageService.OpenAIError.invalidAPIKey {
                 print("⚠️ OpenAI API key not configured. Using placeholder image.")
                 let placeholderImage = createPlaceholderImage(prompt: comic.panels[panelIndex].imagePrompt)
-                comic.panels[panelIndex].generatedImage = placeholderImage
+                await MainActor.run {
+                    comic.panels[panelIndex].generatedImage = placeholderImage
+                }
             } catch OpenAIImageService.OpenAIError.networkError(let error) {
                 print("❌ Network error generating image: \(error.localizedDescription)")
                 print("💡 If you're using the iOS Simulator, try testing on a real device")
                 let placeholderImage = createPlaceholderImage(prompt: "Network Error - Try on device")
-                comic.panels[panelIndex].generatedImage = placeholderImage
+                await MainActor.run {
+                    comic.panels[panelIndex].generatedImage = placeholderImage
+                }
             } catch {
                 print("❌ Failed to generate image: \(error.localizedDescription)")
                 print("💡 Check your internet connection and API key")
                 let placeholderImage = createPlaceholderImage(prompt: "Error - Check logs")
-                comic.panels[panelIndex].generatedImage = placeholderImage
+                await MainActor.run {
+                    comic.panels[panelIndex].generatedImage = placeholderImage
+                }
             }
-            comic.panels[panelIndex].isGenerating = false
+            await MainActor.run {
+                comic.panels[panelIndex].isGenerating = false
+            }
         }
     }
     
