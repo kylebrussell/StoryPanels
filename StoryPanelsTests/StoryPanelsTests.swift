@@ -10,8 +10,9 @@ import Testing
 
 struct StoryPanelsTests {
 
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+    @Test func comicInitializesPanels() {
+        let comic = Comic(layout: .threePanel)
+        #expect(comic.panels.count == 3)
     }
 
 }
