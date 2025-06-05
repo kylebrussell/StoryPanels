@@ -69,10 +69,12 @@ struct ComicPanel: Identifiable {
 struct Comic {
     var layout: PanelLayout
     var panels: [ComicPanel]
-    
+    var selectedTheme: StyleTheme
+
     init(layout: PanelLayout) {
         self.layout = layout
         self.panels = (0..<layout.panelCount).map { _ in ComicPanel() }
+        self.selectedTheme = StyleTheme.allThemes.first!
     }
 }
 
@@ -392,6 +394,21 @@ struct ComicTheme {
     static let secondary = Color.yellow
 }
 
+/// Defines a high level visual style for generated images
+struct StyleTheme: Identifiable {
+    let id = UUID()
+    let name: String
+    let promptModifier: String
+
+    /// Built in themes users can choose from
+    static let allThemes: [StyleTheme] = [
+        StyleTheme(name: "Classic", promptModifier: "illustrated in vibrant Golden Age comic book style with bold lines"),
+        StyleTheme(name: "Manga", promptModifier: "in highly detailed manga style with expressive characters"),
+        StyleTheme(name: "Noir", promptModifier: "in moody black-and-white noir style with dramatic shadows"),
+        StyleTheme(name: "Sci-Fi", promptModifier: "in sleek futuristic sci-fi style with glowing tech")
+    ]
+}
+
 /// Reusable button style that mimics thick inked outlines often seen in comics.
 struct ComicButtonStyle: ButtonStyle {
     var backgroundColor: Color = ComicTheme.secondary
@@ -613,7 +630,30 @@ struct ComicEditorView: View {
                                     }
                                 }
                             }
-                            
+
+                            // Style Theme Picker
+                            VStack(spacing: 8) {
+                                Text("Art Style")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack {
+                                        ForEach(StyleTheme.allThemes) { theme in
+                                            Button(action: { comic.selectedTheme = theme }) {
+                                                Text(theme.name)
+                                                    .font(.caption2)
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 6)
+                                                    .background(comic.selectedTheme.id == theme.id ? ComicTheme.primary : ComicTheme.secondary.opacity(0.4))
+                                                    .foregroundColor(.black)
+                                                    .cornerRadius(6)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             // Image Generation
                             VStack(spacing: 12) {
                                 Text("Describe the image for Panel \(selectedPanel + 1)")
@@ -775,17 +815,19 @@ struct ComicEditorView: View {
                     }
 
                     // Use multimodal generation
+                    let fullPrompt = "\(comic.panels[panelIndex].imagePrompt). \(comic.selectedTheme.promptModifier)"
                     let image = try await OpenAIImageService.shared.generateImageFromCanvas(
                         canvasImage: canvasSnapshot,
-                        prompt: comic.panels[panelIndex].imagePrompt
+                        prompt: fullPrompt
                     )
                     await MainActor.run {
                         comic.panels[panelIndex].generatedImage = image
                     }
                 } else {
                     // Fall back to traditional text-only generation
+                    let fullPrompt = "\(comic.panels[panelIndex].imagePrompt). \(comic.selectedTheme.promptModifier)"
                     let image = try await OpenAIImageService.shared.generateImage(
-                        prompt: comic.panels[panelIndex].imagePrompt
+                        prompt: fullPrompt
                     )
                     await MainActor.run {
                         comic.panels[panelIndex].generatedImage = image
