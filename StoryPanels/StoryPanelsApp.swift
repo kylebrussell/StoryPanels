@@ -12,7 +12,10 @@ import SwiftData
 struct StoryPanelsApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            ComicDocument.self,
+            ComicPanelDocument.self,
+            TextElementDocument.self,
+            CharacterStandInDocument.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

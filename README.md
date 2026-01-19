@@ -8,7 +8,7 @@ An iOS application that democratizes comic creation by combining AI-generated ar
 
 ## 🎯 Key Features
 
-- **AI-Powered Image Generation**: Uses OpenAI's GPT-4o to create comic-style images from text descriptions
+- **AI-Powered Image Generation**: Uses Google Nano Banana Pro (Gemini 3 Pro Image Preview) by default, with optional OpenAI support
 - **Multiple Panel Layouts**: Support for 1-panel and 3-panel comic formats
 - **Interactive Text Elements**: Add speech bubbles, thought bubbles, captions, and sound effects
 - **Character Stand-ins**: Position placeholder characters that get replaced in AI generation
@@ -20,7 +20,7 @@ An iOS application that democratizes comic creation by combining AI-generated ar
 
 - iOS 17.0+
 - Xcode 15.0+
-- OpenAI API key (for image generation)
+- Google API key (for image generation) or OpenAI API key (optional fallback)
 
 ## 🚀 Getting Started
 
@@ -39,14 +39,15 @@ cd StoryPanels
 xcodebuild -project StoryPanels.xcodeproj -scheme StoryPanels -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
-### OpenAI API Setup
+### API Setup (Google or OpenAI)
 
-1. Get an API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+1. Get a Google Gemini API key from [Google AI Studio](https://ai.google.dev/) (recommended)
 2. Open the app and go to Settings (gear icon)
-3. Enter your API key in the configuration section
-4. Start creating comics!
+3. Select **Google (Nano Banana Pro)** and enter your API key
+4. Optionally add an OpenAI API key if you want to switch providers
+5. Start creating comics!
 
-> **Note**: Without an API key, the app will generate placeholder images for testing purposes.
+> **Note**: API keys are stored securely in your device Keychain.
 
 ## 🎨 How to Use
 
@@ -81,7 +82,7 @@ StoryPanels supports an advanced workflow where you can:
 
 - **ContentView.swift**: Main app interface and navigation
 - **ComicEditorView**: Primary editing interface with canvas and tools
-- **OpenAIImageService**: Handles API communication and image generation
+- **ImageGenerationService**: Routes requests to Google or OpenAI providers
 - **PanelView**: Individual comic panel with interactive elements
 - **TextElementView**: Draggable and resizable text components
 - **CharacterStandInView**: Positioning helpers for character placement
@@ -140,11 +141,8 @@ xcodebuild test -project StoryPanels.xcodeproj -scheme StoryPanels -destination 
 
 ## 🔧 Configuration
 
-### Environment Variables
-- `OPENAI_API_KEY`: Set your OpenAI API key (alternative to in-app configuration)
-
-### User Defaults
-- `openai_api_key`: Stores the configured API key securely on device
+### Configuration
+- API keys are stored in Keychain via the in-app Settings screen
 
 ## 🎯 Target Audience
 
@@ -171,7 +169,7 @@ xcodebuild test -project StoryPanels.xcodeproj -scheme StoryPanels -destination 
 
 - API keys are stored locally on device using UserDefaults
 - No user-generated content is stored on external servers
-- All comic creation happens locally with direct API calls to OpenAI
+- All comic creation happens locally with direct API calls to the selected provider (Google or OpenAI)
 
 ## 📝 License
 
@@ -194,7 +192,8 @@ For support or questions:
 
 ## 🙏 Acknowledgments
 
-- OpenAI for GPT-4o image generation capabilities
+- Google Gemini image generation capabilities (Nano Banana Pro)
+- OpenAI image generation as an optional provider
 - The comic book community for inspiration and feedback
 - Beta testers and early adopters
 
