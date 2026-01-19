@@ -18,231 +18,233 @@ struct ComicEditorView: View {
         )
     }
 
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                ScrollViewReader { proxy in
-                    VStack(spacing: 0) {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 20) {
-                                if viewModel.comic.layout == .single {
-                                    Spacer()
-                                }
-                                ForEach(Array(viewModel.comic.panels.enumerated()), id: \.element.id) { index, panel in
-                                    PanelView(
-                                        panel: $viewModel.comic.panels[index],
-                                        isSelected: viewModel.selectedPanelIndex == index,
-                                        onTextElementInteraction: { elementIndex in
-                                            if viewModel.selectedPanelIndex == index {
-                                                mostRecentTextElementIndex = elementIndex
-                                                mostRecentCharacterIndex = nil
-                                            }
-                                        },
-                                        onCharacterInteraction: { characterIndex in
-                                            if viewModel.selectedPanelIndex == index {
-                                                mostRecentCharacterIndex = characterIndex
-                                                mostRecentTextElementIndex = nil
-                                            }
-                                        },
-                                        onInteractionFinished: {
-                                            viewModel.scheduleAutosave()
-                                        }
-                                    )
-                                    .id("panel_\(index)")
-                                    .onTapGesture {
-                                        viewModel.selectedPanelIndex = index
-                                        mostRecentTextElementIndex = nil
-                                        mostRecentCharacterIndex = nil
-                                    }
-                                }
-                                if viewModel.comic.layout == .single {
-                                    Spacer()
-                                }
-                            }
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .background(ComicTheme.background)
+    private var themeSelection: Binding<String> {
+        Binding(
+            get: { viewModel.comic.selectedTheme.name },
+            set: { newValue in
+                viewModel.comic.selectedTheme = StyleTheme.theme(named: newValue)
+                viewModel.scheduleAutosave()
+            }
+        )
+    }
 
-                        VStack(spacing: 16) {
-                            if viewModel.comic.layout == .threePanel {
-                                HStack {
-                                    ForEach(0..<3) { index in
-                                        Button(action: {
-                                            viewModel.selectedPanelIndex = index
-                                            withAnimation(.easeInOut(duration: 0.5)) {
-                                                proxy.scrollTo("panel_\(index)", anchor: .center)
-                                            }
-                                            mostRecentTextElementIndex = nil
-                                            mostRecentCharacterIndex = nil
-                                        }) {
-                                            Text("Panel \(index + 1)")
-                                                .font(.caption)
-                                        }
-                                        .buttonStyle(
-                                            ComicButtonStyle(
-                                                backgroundColor: viewModel.selectedPanelIndex == index ? ComicTheme.primary : ComicTheme.secondary.opacity(0.5),
-                                                foregroundColor: .black,
-                                                strokeColor: .black
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-
-                            VStack(spacing: 8) {
-                                Text("Art Style")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack {
-                                        ForEach(StyleTheme.allThemes) { theme in
-                                            Button(action: {
-                                                viewModel.comic.selectedTheme = theme
-                                                viewModel.scheduleAutosave()
-                                            }) {
-                                                Text(theme.name)
-                                                    .font(.caption2)
-                                                    .padding(.horizontal, 8)
-                                                    .padding(.vertical, 6)
-                                                    .background(viewModel.comic.selectedTheme.name == theme.name ? ComicTheme.primary : ComicTheme.secondary.opacity(0.4))
-                                                    .foregroundColor(.black)
-                                                    .cornerRadius(6)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            VStack(spacing: 12) {
-                                Text("Describe the image for Panel \(viewModel.selectedPanelIndex + 1)")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-
-                                HStack {
-                                    TextField(
-                                        "A superhero flying...",
-                                        text: $viewModel.comic.panels[viewModel.selectedPanelIndex].imagePrompt
-                                    )
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .focused($isPromptFieldFocused)
-
-                                    Button(action: {
-                                        viewModel.generateImage(for: viewModel.selectedPanelIndex)
-                                    }) {
-                                        if viewModel.comic.panels[viewModel.selectedPanelIndex].isGenerating {
-                                            ProgressView()
-                                                .progressViewStyle(CircularProgressViewStyle())
-                                                .scaleEffect(0.8)
-                                        } else {
-                                            Text("Generate")
-                                                .font(.caption)
-                                                .frame(maxWidth: .infinity)
-                                        }
-                                    }
-                                    .buttonStyle(ComicButtonStyle(backgroundColor: ComicTheme.primary, foregroundColor: .white))
-                                    .disabled(viewModel.comic.panels[viewModel.selectedPanelIndex].isGenerating || viewModel.comic.panels[viewModel.selectedPanelIndex].imagePrompt.isEmpty)
-                                }
-
-                                HStack {
-                                    Button("Try Again") {
-                                        viewModel.retryGeneration(for: viewModel.selectedPanelIndex)
-                                    }
-                                    .buttonStyle(ComicButtonStyle(backgroundColor: ComicTheme.secondary, foregroundColor: .black))
-                                    .disabled(viewModel.comic.panels[viewModel.selectedPanelIndex].imagePrompt.isEmpty)
-
-                                    if viewModel.comic.panels[viewModel.selectedPanelIndex].isGenerating {
-                                        Button("Cancel") {
-                                            viewModel.cancelGeneration(for: viewModel.selectedPanelIndex)
-                                        }
-                                        .buttonStyle(ComicButtonStyle(backgroundColor: .red, foregroundColor: .white))
-                                    }
-                                }
-                            }
-
-                            VStack(spacing: 8) {
-                                Text("Add Characters")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-
-                                HStack(spacing: 12) {
-                                    Button(action: {
-                                        viewModel.addCharacterStandIn(to: viewModel.selectedPanelIndex)
-                                        mostRecentCharacterIndex = viewModel.comic.panels[viewModel.selectedPanelIndex].characterStandIns.count - 1
-                                        mostRecentTextElementIndex = nil
-                                    }) {
-                                        VStack(spacing: 4) {
-                                            Image(systemName: "person.circle.fill")
-                                                .font(.system(size: 20))
-                                            Text("Character")
-                                                .font(.caption2)
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 8)
-                                    }
-                                    .buttonStyle(ComicButtonStyle(backgroundColor: Color.blue.opacity(0.7), foregroundColor: .white))
-                                }
-                            }
-
-                            HStack(spacing: 12) {
-                                ForEach(TextElementType.allCases, id: \.self) { type in
-                                    Button(action: {
-                                        viewModel.addTextElement(type: type, to: viewModel.selectedPanelIndex)
-                                        mostRecentTextElementIndex = viewModel.comic.panels[viewModel.selectedPanelIndex].textElements.count - 1
-                                        mostRecentCharacterIndex = nil
-                                    }) {
-                                        VStack(spacing: 4) {
-                                            Image(systemName: type.icon)
-                                                .font(.system(size: 20))
-                                            Text(type.rawValue)
-                                                .font(.caption2)
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 8)
-                                    }
-                                    .buttonStyle(ComicButtonStyle(backgroundColor: ComicTheme.secondary, foregroundColor: .black))
-                                }
-                            }
-
-                            if let mostRecentIndex = mostRecentTextElementIndex,
-                               mostRecentIndex < viewModel.comic.panels[viewModel.selectedPanelIndex].textElements.count {
-                                Button(action: {
-                                    viewModel.comic.panels[viewModel.selectedPanelIndex].textElements.remove(at: mostRecentIndex)
-                                    mostRecentTextElementIndex = nil
-                                    viewModel.scheduleAutosave()
-                                }) {
-                                    HStack {
-                                        Image(systemName: "trash.fill")
-                                        Text("Remove Text")
-                                    }
-                                }
-                                .buttonStyle(ComicButtonStyle(backgroundColor: .red, foregroundColor: .white))
-                            } else if let mostRecentIndex = mostRecentCharacterIndex,
-                                      mostRecentIndex < viewModel.comic.panels[viewModel.selectedPanelIndex].characterStandIns.count {
-                                Button(action: {
-                                    viewModel.comic.panels[viewModel.selectedPanelIndex].characterStandIns.remove(at: mostRecentIndex)
+    private var panelSection: some View {
+        sectionCard(title: "Panels") {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 20) {
+                    if viewModel.comic.layout == .single {
+                        Spacer()
+                    }
+                    ForEach(Array(viewModel.comic.panels.enumerated()), id: \.element.id) { index, panel in
+                        PanelView(
+                            panel: $viewModel.comic.panels[index],
+                            isSelected: viewModel.selectedPanelIndex == index,
+                            onTextElementInteraction: { elementIndex in
+                                if viewModel.selectedPanelIndex == index {
+                                    mostRecentTextElementIndex = elementIndex
                                     mostRecentCharacterIndex = nil
-                                    viewModel.scheduleAutosave()
-                                }) {
-                                    HStack {
-                                        Image(systemName: "trash.fill")
-                                        Text("Remove Character")
-                                    }
                                 }
-                                .buttonStyle(ComicButtonStyle(backgroundColor: .red, foregroundColor: .white))
+                            },
+                            onCharacterInteraction: { characterIndex in
+                                if viewModel.selectedPanelIndex == index {
+                                    mostRecentCharacterIndex = characterIndex
+                                    mostRecentTextElementIndex = nil
+                                }
+                            },
+                            onInteractionFinished: {
+                                viewModel.scheduleAutosave()
                             }
+                        )
+                        .id("panel_\(index)")
+                        .onTapGesture {
+                            viewModel.selectedPanelIndex = index
+                            mostRecentTextElementIndex = nil
+                            mostRecentCharacterIndex = nil
                         }
-                        .padding()
-                        .background(ComicTheme.background)
+                    }
+                    if viewModel.comic.layout == .single {
+                        Spacer()
                     }
                 }
+                .padding(.vertical, 6)
+                .padding(.horizontal, 4)
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .offset(y: isPromptFieldFocused ? -40 : 0)
-            .animation(.easeInOut(duration: 0.25), value: isPromptFieldFocused)
-            .background(ComicTheme.background)
+        }
+    }
+
+    @ViewBuilder
+    private var panelPickerSection: some View {
+        if viewModel.comic.layout == .threePanel {
+            sectionCard(title: "Panel") {
+                Picker("Panel", selection: $viewModel.selectedPanelIndex) {
+                    ForEach(0..<3) { index in
+                        Text("Panel \(index + 1)").tag(index)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+        }
+    }
+
+    private var styleSection: some View {
+        sectionCard(title: "Art Style") {
+            Picker("Art Style", selection: themeSelection) {
+                ForEach(StyleTheme.allThemes) { theme in
+                    Text(theme.name).tag(theme.name)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
+    private var promptSection: some View {
+        let panel = viewModel.comic.panels[viewModel.selectedPanelIndex]
+        return sectionCard(title: "Describe the image for Panel \(viewModel.selectedPanelIndex + 1)") {
+            HStack(spacing: 12) {
+                TextField(
+                    "A superhero flying...",
+                    text: $viewModel.comic.panels[viewModel.selectedPanelIndex].imagePrompt
+                )
+                .textFieldStyle(.roundedBorder)
+                .focused($isPromptFieldFocused)
+
+                Button(action: {
+                    viewModel.generateImage(for: viewModel.selectedPanelIndex)
+                }) {
+                    HStack(spacing: 6) {
+                        if panel.isGenerating {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .scaleEffect(0.8)
+                        }
+                        Text(panel.isGenerating ? "Generating" : "Generate")
+                    }
+                }
+                .buttonStyle(ComicButtonStyle(variant: .primary, isCompact: true))
+                .disabled(panel.isGenerating || panel.imagePrompt.isEmpty)
+            }
+
+            HStack(spacing: 12) {
+                Button("Try Again") {
+                    viewModel.retryGeneration(for: viewModel.selectedPanelIndex)
+                }
+                .buttonStyle(ComicButtonStyle(variant: .secondary, isCompact: true))
+                .disabled(panel.imagePrompt.isEmpty)
+
+                if panel.isGenerating {
+                    Button(role: .destructive) {
+                        viewModel.cancelGeneration(for: viewModel.selectedPanelIndex)
+                    } label: {
+                        Text("Cancel")
+                    }
+                    .buttonStyle(ComicButtonStyle(variant: .destructive, isCompact: true))
+                }
+            }
+        }
+    }
+
+    private var characterSection: some View {
+        sectionCard(title: "Characters") {
+            Button(action: {
+                viewModel.addCharacterStandIn(to: viewModel.selectedPanelIndex)
+                mostRecentCharacterIndex = viewModel.comic.panels[viewModel.selectedPanelIndex].characterStandIns.count - 1
+                mostRecentTextElementIndex = nil
+            }) {
+                Label("Add Character", systemImage: "person.crop.circle.badge.plus")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(ComicButtonStyle(variant: .secondary))
+        }
+    }
+
+    private var textElementsSection: some View {
+        sectionCard(title: "Text Elements") {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(TextElementType.allCases, id: \.self) { type in
+                    Button(action: {
+                        viewModel.addTextElement(type: type, to: viewModel.selectedPanelIndex)
+                        mostRecentTextElementIndex = viewModel.comic.panels[viewModel.selectedPanelIndex].textElements.count - 1
+                        mostRecentCharacterIndex = nil
+                    }) {
+                        Label(type.rawValue, systemImage: type.icon)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(ComicButtonStyle(variant: .secondary, isCompact: true))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var removalSection: some View {
+        if let mostRecentIndex = mostRecentTextElementIndex,
+           mostRecentIndex < viewModel.comic.panels[viewModel.selectedPanelIndex].textElements.count {
+            Button(role: .destructive) {
+                viewModel.comic.panels[viewModel.selectedPanelIndex].textElements.remove(at: mostRecentIndex)
+                mostRecentTextElementIndex = nil
+                viewModel.scheduleAutosave()
+            } label: {
+                Label("Remove Text", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(ComicButtonStyle(variant: .destructive))
+        } else if let mostRecentIndex = mostRecentCharacterIndex,
+                  mostRecentIndex < viewModel.comic.panels[viewModel.selectedPanelIndex].characterStandIns.count {
+            Button(role: .destructive) {
+                viewModel.comic.panels[viewModel.selectedPanelIndex].characterStandIns.remove(at: mostRecentIndex)
+                mostRecentCharacterIndex = nil
+                viewModel.scheduleAutosave()
+            } label: {
+                Label("Remove Character", systemImage: "trash")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(ComicButtonStyle(variant: .destructive))
+        }
+    }
+
+    private func sectionCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            content()
+        }
+        .padding()
+        .background(ComicTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: ComicTheme.Metrics.largeCornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ComicTheme.Metrics.largeCornerRadius, style: .continuous)
+                .stroke(ComicTheme.outline, lineWidth: ComicTheme.Metrics.outlineWidth)
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: ComicTheme.Metrics.sectionSpacing) {
+                        panelSection
+                        panelPickerSection
+                        styleSection
+                        promptSection
+                        characterSection
+                        textElementsSection
+                        removalSection
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 20)
+                }
+                .onChange(of: viewModel.selectedPanelIndex) { newValue in
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        proxy.scrollTo("panel_\(newValue)", anchor: .center)
+                    }
+                    mostRecentTextElementIndex = nil
+                    mostRecentCharacterIndex = nil
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(ComicTheme.paperBackground)
             .navigationTitle("Comic Editor")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -287,10 +289,7 @@ struct ComicEditorView: View {
             } message: {
                 Text(viewModel.generationErrorMessage ?? "")
             }
-            .background(ComicTheme.background)
-            .ignoresSafeArea()
-            .toolbarBackground(ComicTheme.background, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .background(ComicTheme.paperBackground.ignoresSafeArea())
             .onDisappear {
                 viewModel.saveDraft()
             }

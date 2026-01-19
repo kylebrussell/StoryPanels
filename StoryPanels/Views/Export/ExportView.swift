@@ -34,12 +34,12 @@ struct ExportView: View {
                             Label("Bake Text into Art", systemImage: "sparkles")
                         }
                     }
-                    .buttonStyle(ComicButtonStyle(backgroundColor: ComicTheme.secondary, foregroundColor: .black))
+                    .buttonStyle(ComicButtonStyle(variant: .secondary))
                     .disabled(isBaking)
 
                     if bakedImage != nil {
                         Toggle("Use baked version", isOn: $useBaked)
-                            .toggleStyle(SwitchToggleStyle(tint: ComicTheme.primary))
+                            .toggleStyle(SwitchToggleStyle(tint: ComicTheme.accent))
                     }
                 }
                 .padding(.horizontal)
@@ -50,18 +50,15 @@ struct ExportView: View {
                     }) {
                         Label("Save to Photos", systemImage: "square.and.arrow.down")
                     }
-                    .buttonStyle(ComicButtonStyle(backgroundColor: ComicTheme.primary, foregroundColor: .white))
+                    .buttonStyle(ComicButtonStyle(variant: .primary))
                     .frame(maxWidth: .infinity)
 
                     ShareLink(item: Image(uiImage: currentImage), preview: SharePreview("My Comic", image: Image(uiImage: currentImage))) {
                         Label("Share", systemImage: "square.and.arrow.up")
-                            .font(.headline)
-                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.green)
-                            .cornerRadius(12)
                     }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(ComicButtonStyle(variant: .secondary))
                 }
                 .padding(.horizontal)
             }
@@ -75,10 +72,7 @@ struct ExportView: View {
                 }
             }
         }
-        .background(ComicTheme.background)
-        .ignoresSafeArea()
-        .toolbarBackground(ComicTheme.background, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
+        .background(ComicTheme.paperBackground.ignoresSafeArea())
         .onChange(of: bakedImage) { newValue in
             if newValue != nil {
                 useBaked = true

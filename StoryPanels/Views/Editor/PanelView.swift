@@ -8,23 +8,34 @@ struct PanelView: View {
     let onInteractionFinished: () -> Void
 
     var body: some View {
+        let panelSize = ComicTheme.Metrics.panelSize
+        let panelInset = ComicTheme.Metrics.panelInset
+        let cornerRadius = ComicTheme.Metrics.largeCornerRadius
         ZStack {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white)
-                .frame(width: 300, height: 300)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(ComicTheme.surface)
+                .frame(width: panelSize, height: panelSize)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.black, lineWidth: isSelected ? 5 : 3)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(
+                            isSelected ? ComicTheme.accent : ComicTheme.outline,
+                            lineWidth: isSelected ? ComicTheme.Metrics.selectedOutlineWidth : ComicTheme.Metrics.outlineWidth
+                        )
                 )
-                .shadow(color: Color.black.opacity(0.25), radius: 4, x: 2, y: 2)
+                .shadow(
+                    color: isSelected ? ComicTheme.accent.opacity(0.2) : ComicTheme.subtleShadow,
+                    radius: 4,
+                    x: 0,
+                    y: 2
+                )
 
             if let image = panel.generatedImage {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 290, height: 290)
+                    .frame(width: panelSize - (panelInset * 2), height: panelSize - (panelInset * 2))
                     .clipped()
-                    .cornerRadius(8)
+                    .cornerRadius(ComicTheme.Metrics.cornerRadius)
             } else if panel.isGenerating {
                 ProgressView("Generating...")
                     .progressViewStyle(CircularProgressViewStyle())
@@ -32,10 +43,10 @@ struct PanelView: View {
                 VStack {
                     Image(systemName: "photo")
                         .font(.system(size: 40))
-                        .foregroundColor(.gray.opacity(0.5))
+                        .foregroundStyle(.secondary)
                     Text("Tap to select")
                         .font(.caption)
-                        .foregroundColor(.gray.opacity(0.5))
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -67,6 +78,6 @@ struct PanelView: View {
                 )
             }
         }
-        .frame(width: 300, height: 300)
+        .frame(width: panelSize, height: panelSize)
     }
 }

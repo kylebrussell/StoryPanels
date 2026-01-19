@@ -71,14 +71,14 @@ struct SettingsView: View {
                     if let testStatus {
                         Text(testStatus)
                             .font(.caption)
-                            .foregroundColor(.gray)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
                 Section(header: Text("About")) {
                     Text("Your API keys are stored securely in the Keychain on this device.")
                         .font(.caption)
-                        .foregroundColor(.gray)
+                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Settings")
@@ -102,7 +102,7 @@ struct SettingsView: View {
                 openAIApiKey = keychain.get(KeychainKeys.openAIAPIKey) ?? ""
             }
             .scrollContentBackground(.hidden)
-            .background(ComicTheme.background)
+            .background(ComicTheme.paperBackground)
         }
     }
 

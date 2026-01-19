@@ -7,12 +7,12 @@ struct ComicCardView: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.white)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(ComicTheme.surface)
                     .frame(width: 72, height: 72)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.black, lineWidth: 2)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(ComicTheme.outline, lineWidth: ComicTheme.Metrics.outlineWidth)
                     )
                 if let thumbnail {
                     Image(uiImage: thumbnail)
@@ -23,7 +23,7 @@ struct ComicCardView: View {
                         .cornerRadius(6)
                 } else {
                     Image(systemName: "photo")
-                        .foregroundColor(.gray.opacity(0.6))
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -32,19 +32,20 @@ struct ComicCardView: View {
                     .font(.headline)
                 Text(comicSubtitle)
                     .font(.caption)
-                    .foregroundColor(.gray)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             Image(systemName: "chevron.right")
-                .foregroundColor(.gray)
+                .foregroundStyle(.secondary)
         }
         .padding()
-        .background(Color.white.opacity(0.9))
+        .background(ComicTheme.surface)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.black, lineWidth: 2)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(ComicTheme.outline, lineWidth: ComicTheme.Metrics.outlineWidth)
         )
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(color: ComicTheme.subtleShadow, radius: 2, x: 0, y: 1)
     }
 
     private var comicTitle: String {

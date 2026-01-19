@@ -44,14 +44,14 @@ struct ContentView: View {
                         }) {
                             Label("Create Comic", systemImage: "plus.circle.fill")
                         }
-                        .buttonStyle(ComicButtonStyle(backgroundColor: ComicTheme.primary, foregroundColor: .white))
+                        .buttonStyle(ComicButtonStyle(variant: .primary))
                     }
                     .padding(.horizontal)
 
                     if comics.isEmpty {
                         Text("No saved comics yet. Start your first one!")
                             .font(.caption)
-                            .foregroundColor(.gray)
+                            .foregroundStyle(.secondary)
                             .padding(.top, 12)
                     } else {
                         VStack(alignment: .leading, spacing: 12) {
@@ -79,7 +79,7 @@ struct ContentView: View {
                 .padding(.vertical)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(ComicTheme.background)
+            .background(ComicTheme.paperBackground)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
@@ -105,8 +105,6 @@ struct ContentView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
-            .toolbarBackground(ComicTheme.background, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
         }
     }
 

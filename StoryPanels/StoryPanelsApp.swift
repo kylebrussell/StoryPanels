@@ -29,6 +29,7 @@ struct StoryPanelsApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .tint(ComicTheme.accent)
         }
         .modelContainer(sharedModelContainer)
     }
